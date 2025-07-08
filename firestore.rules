@@ -1,0 +1,29 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 既存のユーザーデータルール
+    match /artifacts/{appId}/users/{userId}/{userCollection}/{userDocument=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // 新しい予算コレクションのルール
+    // ユーザーは自分のbudgetsコレクション内のドキュメントに対してのみ読み書きを許可
+    match /artifacts/{appId}/users/{userId}/budgets/{budgetDocId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // --- 注意 ---
+    // もし、アプリケーション全体で共有される公開データなど、
+    // 上記以外のパス構造を持つコレクションがある場合は、
+    // ここに追加で適切なルールを記述する必要があります。
+    //
+    // 例：誰でも読み取り可能な公開データコレクション
+    // match /artifacts/{appId}/public_data/{publicCollection}/{publicDocument=**} {
+    //    allow read: if true;
+    //    // 書き込みは例えば管理者のみに制限するなど
+    //    // allow write: if request.auth != null && request.auth.token.admin == true;
+    // }
+  }
+}

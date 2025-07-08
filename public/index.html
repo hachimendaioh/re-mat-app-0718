@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#000000" />
+    <meta
+      name="description"
+      content="Re-Mat: Your smart mobile wallet application."
+    />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <title>Re-Mat App</title>
+
+    <!-- Google AdSense CMP スクリプト (同意管理プラットフォーム) -->
+    <!-- このスクリプトは、ユーザーの同意を得るためのものです。 -->
+    <script async src="https://fundingchoicesmessages.google.com/i/ca-pub-2446505733093667"
+            data-cmp-metadata="YOUR_CMP_METADATA_STRING"></script>
+    <script>
+      (function(){
+        // 同意が得られた場合にAdSenseスクリプトを読み込む関数
+        function loadAdSenseScript() {
+          var adScript = document.createElement('script');
+          adScript.async = true;
+          adScript.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2446505733093667';
+          adScript.setAttribute('crossorigin', 'anonymous');
+          document.head.appendChild(adScript);
+          console.log("AdSense: adsbygoogle.js script appended to head.");
+        }
+
+        // CMPのAPIが利用可能かチェックし、同意状況に応じてスクリプトを読み込む
+        // 同意が不要な地域や、同意が得られた場合にロード
+        if (window.__uspapi) {
+          window.__uspapi('getTCData', 1, function(tcData, success) {
+            if (success && tcData.gdprApplies) {
+              if (tcData.purpose.consents['1']) { // 例: 目的1（デバイスへの情報の保存およびアクセス）に同意
+                loadAdSenseScript();
+              } else {
+                console.log("AdSense: Consent for purpose 1 not given.");
+              }
+            } else {
+              // GDPRが適用されない、またはAPIが利用できない場合は同意なしでロード
+              loadAdSenseScript();
+            }
+          });
+        } else {
+          // CMP APIがない場合は直接ロード（同意管理が不要な地域向け）
+          loadAdSenseScript();
+        }
+      })();
+    </script>
+   
+    <!-- Tailwind CSS CDN (開発用、本番環境ではPostCSSプラグインとしてインストール推奨) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Inter Font の読み込み (Google Fonts) -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+      /* Inter フォントをbody全体に適用 */
+      body {
+        font-family: 'Inter', sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+    <!--
+      This HTML file is a template.
+      If you open it directly in the browser, you will see an empty page.
+
+      You can add webfonts, meta tags, or analytics to this file.
+      The build step will place the bundled scripts into the <body> tag.
+
+      To begin the development, run `npm start` or `yarn start`.
+      To create a production bundle, use `npm run build` or `yarn build`.
+    -->
+    <!-- QRコード読み取りライブラリ jsQR -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.1.0/dist/jsQR.min.js"></script>
+    <!-- QRコード生成ライブラリ QRious -->
+    <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
+  </body>
+</html>
