@@ -1,13 +1,16 @@
-import React, { useState, useCallback, useEffect } from 'react';
-
+// App.js
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 // Firebase imports (firebaseConfig.jsからインポート)
 // useAppInitフック内でFirebaseインスタンスを取得するため、ここでは直接インポートしない
 import { doc, setDoc, updateDoc, collection, query, onSnapshot, addDoc, serverTimestamp, writeBatch, where, getDocs, getDoc } from 'firebase/firestore';
+// ★Cloud Functions のインポートを追加
+import { getFunctions, httpsCallable } from 'firebase/functions'; // ★この行を追加
 
 // 共通コンポーネントのインポート
 import LoadingSpinner from './components/common/LoadingSpinner';
 import CustomModal from './components/common/CustomModal';
 import ToastNotification from './components/common/ToastNotification';
+// import HorizontalAdSense from './components/common/HorizontalAdSense'; // ★この行は削除済みであることを確認
 
 // 各画面コンポーネントのインポート
 import SplashScreen from './screens/SplashScreen';
@@ -69,13 +72,13 @@ export default function ReMatApp() {
     auth, 
     db, 
     appId,
-    setBalance, // ★追加
-    setPoints,   // ★追加
-    setUserName, // ★追加
-    setProfileImage, // ★追加
-    setHistory, // ★追加
-    setNotifications, // ★追加
-    setUserId // ★この行が重要！useAppInitからsetUserIdを正しく受け取ります
+    setBalance,
+    setPoints,
+    setUserName,
+    setProfileImage,
+    setHistory,
+    setNotifications,
+    setUserId
   } = useAppInit();
 
   // useAppLoggerカスタムフックから画面表示用ログを取得
@@ -254,8 +257,6 @@ export default function ReMatApp() {
   // handlePayment関数はPaymentConfirmationScreenから呼ばれるように変更
   const confirmPayment = useCallback(async (paymentAmount, storeNameForHistory = 'QR決済店舗') => { // 金額と店舗名を引数として受け取る
     console.log("confirmPayment: 関数が呼び出されました。"); // デバッグログ
-    console.log("confirmPayment: paymentAmount =", paymentAmount); // デバッグログ
-    console.log("confirmPayment: scannedStoreId =", scannedStoreId); // デバッグログ
 
     setModal({
       isOpen: true,
@@ -265,6 +266,17 @@ export default function ReMatApp() {
       showCancelButton: false,
       onConfirm: () => {},
     });
+
+    if (!auth.currentUser) {
+      setModal({
+        isOpen: true,
+        title: '認証エラー',
+        message: '支払いを行うにはログインが必要です。',
+        onConfirm: () => { resetModal(); setScreen('login'); },
+        showCancelButton: false,
+      });
+      return;
+    }
 
     if (!db || !userId) {
       console.error("Firestore not initialized or user not authenticated.");
@@ -288,137 +300,63 @@ export default function ReMatApp() {
     console.log("confirmPayment: receiverName =", receiverName); // デバッグログ
 
 
-    // 送金先ユーザーのプロフィール参照
-    let receiverProfileDocRef = null;
-    if (isReceiverPayment) {
-      receiverProfileDocRef = doc(db, `artifacts/${appId}/users/${receiverId}/profile`, 'userProfile');
-      console.log("confirmPayment: receiverProfileDocRef created for:", receiverId); // デバッグログ
-    }
-
+    // ★ここからCloud Functionの呼び出しに置き換える★
     try {
-      const profileDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'userProfile');
-      const transactionsColRef = collection(db, `artifacts/${appId}/users/${userId}/transactions`);
-      const notificationsColRef = collection(db, `artifacts/${appId}/users/${userId}/notifications`);
+      const functions = getFunctions(); // Firebase Functionsインスタンスを取得
+      const processPaymentCallable = httpsCallable(functions, 'processPayment'); // Callable Functionを定義
 
-      const newBalance = balance - paymentAmount;
-      const newPoints = points + Math.floor(paymentAmount * 0.03);
-
-      // バッチ処理を開始
-      const batch = writeBatch(db);
-      console.log("confirmPayment: Firestore batch initialized."); // デバッグログ
-
-      // 1. 送金元（現在のユーザー）の残高とポイントを更新
-      batch.update(profileDocRef, {
-        balance: newBalance,
-        points: newPoints
+      // Cloud Functionを呼び出す
+      const result = await processPaymentCallable({
+        receiverId: receiverId,
+        amount: paymentAmount,
+        senderName: userName, // 送金元の名前を渡す
+        receiverName: receiverName // 受取人の名前を渡す
       });
-      console.log("Firestore Batch: Sender profile update added to batch.");
 
-      // 2. 送金元（現在のユーザー）の取引履歴を追加
-      const senderTransactionRef = doc(transactionsColRef);
-      batch.set(senderTransactionRef, {
-        store: isReceiverPayment ? receiverName || `ユーザーID: ${receiverId}` : storeNameForHistory, // 受取人名または従来の店舗名
-        amount: -paymentAmount, // 支払いなのでマイナス
-        date: serverTimestamp(),
-        type: 'payment',
-        notification_type: 'info',
-        timestamp: serverTimestamp(),
-        // 受取人支払いの場合は、受取人IDも記録
-        ...(isReceiverPayment && { receiverId: receiverId })
-      });
-      console.log("Firestore Batch: Sender transaction add added to batch.");
+      console.log("Cloud Function response:", result.data);
 
-      // 3. 送金元（現在のユーザー）への通知を追加
-      const senderNotificationRef = doc(notificationsColRef);
-      batch.set(senderNotificationRef, {
-        text: `¥${paymentAmount.toLocaleString()}を${isReceiverPayment ? receiverName || '不明なユーザー' : storeNameForHistory}に支払いました。現在の残高：¥${newBalance.toLocaleString()}`,
-        read: false,
-        type: 'info',
-        timestamp: serverTimestamp()
-      });
-      console.log("Firestore Batch: Sender notification add added to batch.");
-
-      // 受取人（receiverIdが存在する場合）の残高とポイントを更新
-      if (isReceiverPayment && receiverProfileDocRef) {
-        console.log("confirmPayment: isReceiverPayment is true. Attempting to get receiver profile."); // デバッグログ
-        // 受取人の現在の残高とポイントを取得（トランザクション内で安全に行う）
-        const receiverDocSnap = await getDoc(receiverProfileDocRef); // ここでgetDocを使用
-        console.log("confirmPayment: receiverDocSnap obtained. exists:", receiverDocSnap.exists()); // デバッグログ
-
-        if (receiverDocSnap.exists()) {
-          const receiverData = receiverDocSnap.data();
-          const newReceiverBalance = (receiverData.balance || 0) + paymentAmount;
-          const newReceiverPoints = (receiverData.points || 0) + Math.floor(paymentAmount * 0.005); // 受取人には少し少ないポイント付与
-
-          batch.update(receiverProfileDocRef, {
-            balance: newReceiverBalance,
-            points: newReceiverPoints
-          });
-          console.log("Firestore Batch: Receiver profile update added to batch.");
-
-          // 受取人の取引履歴を追加
-          const receiverTransactionsColRef = collection(db, `artifacts/${appId}/users/${receiverId}/transactions`);
-          const receiverTransactionRef = doc(receiverTransactionsColRef);
-          batch.set(receiverTransactionRef, {
-            store: userName || `ユーザーID: ${userId}`, // 送金元ユーザーの名前
-            amount: paymentAmount, // 受取なのでプラス
-            date: serverTimestamp(),
-            type: 'receive',
-            notification_type: 'info',
-            timestamp: serverTimestamp(),
-            senderId: userId // 送金元IDも記録
-          });
-          console.log("Firestore Batch: Receiver transaction add added to batch.");
-
-          // 受取人への通知を追加
-          const receiverNotificationsColRef = collection(db, `artifacts/${appId}/users/${receiverId}/notifications`);
-          const receiverNotificationRef = doc(receiverNotificationsColRef);
-          batch.set(receiverNotificationRef, {
-            text: `¥${paymentAmount.toLocaleString()}を${userName || '不明なユーザー'}から受け取りました。現在の残高：¥${newReceiverBalance.toLocaleString()}`,
-            read: false,
-            type: 'info',
-            timestamp: serverTimestamp()
-          });
-          console.log("Firestore Batch: Receiver notification add added to batch.");
-
-        } else {
-          console.warn(`confirmPayment: Receiver profile for ID ${receiverId} not found.`); // デバッグログ
-          setModal({
-            isOpen: true,
-            title: '受取人エラー',
-            message: '受取人のアカウントが見つかりませんでした。支払い元からの残高は減算されますが、受取人への送金は行われませんでした。',
-            onConfirm: () => resetModal(),
-            showCancelButton: false,
-          });
-          // この場合でも支払い元は処理を進める
-        }
+      if (result.data.success) {
+        setScannedAmount(null);
+        setScannedStoreId(null);
+        setScanInputAmount('');
+        setLastTransactionDetails({ type: 'payment', amount: paymentAmount }); // 支払い完了のトランザクション詳細を記録
+        setScanMode('initial');
+        setScreen('支払い完了');
+        resetModal();
+        setToast({ message: `¥${paymentAmount.toLocaleString()}の支払いが完了しました！`, type: 'success' });
+      } else {
+        // Cloud Functionからのエラーメッセージを表示
+        setModal({
+          isOpen: true,
+          title: '支払い失敗',
+          message: result.data.message || '送金処理中に不明なエラーが発生しました。',
+          onConfirm: () => resetModal(),
+          showCancelButton: false,
+        });
+        setToast({ message: `支払い失敗: ${result.data.message || '不明なエラー'}`, type: 'error' });
       }
 
-      // バッチをコミット
-      console.log("confirmPayment: Attempting to commit batch."); // デバッグログ
-      await batch.commit();
-      console.log("Firestore Batch: All operations committed successfully."); // デバッグログ
-
-      setScannedAmount(null);
-      setScannedStoreId(null);
-      setScanInputAmount('');
-      setLastTransactionDetails({ type: 'payment', amount: paymentAmount }); // 支払い完了のトランザクション詳細を記録
-      setScanMode('initial');
-      setScreen('支払い完了');
-      resetModal();
-      setToast({ message: `¥${paymentAmount.toLocaleString()}の支払いが完了しました！`, type: 'success' });
     } catch (error) {
-      console.error("Error during payment (Batch failed):", error); // 変更ログ
+      console.error("Error calling Cloud Function:", error);
+      let errorMessage = '送金処理中に予期せぬエラーが発生しました。';
+      if (error.code) {
+        errorMessage = `エラーコード: ${error.code}\nメッセージ: ${error.message}`;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       setModal({
         isOpen: true,
         title: '支払い失敗',
-        message: `支払い処理中にエラーが発生しました。\n詳細: ${error.message || error.toString()}`, // エラー詳細を表示
+        message: errorMessage,
         onConfirm: () => resetModal(),
         showCancelButton: false,
       });
-      setToast({ message: `支払い失敗: ${error.message || '不明なエラー'}`, type: 'error' });
+      setToast({ message: `支払い失敗: ${errorMessage}`, type: 'error' });
     }
-  }, [balance, userId, db, appId, setModal, resetModal, setToast, setScreen, setScannedAmount, setScannedStoreId, setScanInputAmount, setLastTransactionDetails, setScanMode, userName, setBalance, setPoints]); // setBalance, setPointsを依存配列に追加
+    // ★ここまでCloud Functionの呼び出しに置き換え★
+
+  }, [balance, userId, db, auth, appId, setModal, resetModal, setToast, setScreen, setScannedAmount, setScannedStoreId, setScanInputAmount, setLastTransactionDetails, setScanMode, userName, setBalance, setPoints]); // setBalance, setPointsを依存配列に追加
 
   const handleNotificationRead = useCallback(async (id) => {
     if (!db || !userId) {
@@ -697,6 +635,18 @@ export default function ReMatApp() {
                 setScreen={setScreen}
                 isLoading={isLoading}
               />
+
+              {/* ここに広告ユニットコードを直接挿入 */}
+              <div className="my-8 text-center">
+                <ins className="adsbygoogle"
+                     style={{ display: 'block' }}
+                     data-ad-client="ca-pub-2446505733093667"
+                     data-ad-slot="6417629682" // 提供された広告ユニットコードのID
+                     data-ad-format="auto"
+                     data-full-width-responsive="true"></ins>
+              </div>
+              {/* 広告ユニットの初期化はindex.htmlで行うため、ここでの adsbygoogle.push は不要です */}
+
             </div>
           )}
 

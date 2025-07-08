@@ -1,7 +1,7 @@
 // src/components/layout/HomeDashboard.js
 
-import React, { useState } from 'react'; // useState をインポート
-import AdSenseAd from '../common/AdSenseAd'; // AdSenseAdコンポーネントをインポート
+import React, { useState } from 'react';
+// import AdSenseAd from '../common/AdSenseAd'; // ★この行を削除します★
 import { scanIcon, chargeIcon, pointsIcon, historyIcon, walletIcon, payIcon } from '../../constants/icons'; // アイコンをインポート
 
 /**
@@ -17,29 +17,10 @@ import { scanIcon, chargeIcon, pointsIcon, historyIcon, walletIcon, payIcon } fr
  * @param {boolean} props.isLoading - アプリがロード中かどうか
  */
 const HomeDashboard = ({ auth, isStoreMode, userId, userName, balance, points, setScreen, isLoading }) => {
-  const [isAdLoaded, setIsAdLoaded] = useState(false); // AdSense広告がロードされたかどうかの状態
+  // const [isAdLoaded, setIsAdLoaded] = useState(false); // ★この行も不要になりますので削除します★
 
   return (
     <>
-      {/* Top Header for Home Screen (App.jsから移動) */}
-      {/* この部分はApp.jsのHome画面のレンダリングロジックの直後、DebugInfoの上に配置されます */}
-      {/* <div className="flex items-center justify-between p-4 bg-gray-800 rounded-b-xl shadow-lg mb-6">
-        <button
-          onClick={() => {
-            console.log("Hamburger icon clicked!");
-            // setIsDrawerOpen(true); // 親コンポーネントの関数を直接呼び出すことはできないため、propsで渡すか、このコンポーネントから直接管理しない
-          }}
-          className="text-white focus:outline-none p-2 rounded-lg hover:bg-gray-700 transition-colors duration-200"
-        >
-          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path>
-          </svg>
-        </button>
-        <h1 className="text-3xl font-extrabold text-white tracking-wider">RE-Mat</h1>
-        <div className="w-8 h-8"></div>
-      </div> */}
-
-
       {/* Top Ad Space */}
       <div className="w-full h-16 bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center text-white text-sm font-bold shadow-md relative overflow-hidden rounded-xl mb-6">
         <div className="absolute inset-0 bg-pattern-dots opacity-20"></div>
@@ -49,17 +30,18 @@ const HomeDashboard = ({ auth, isStoreMode, userId, userName, balance, points, s
         </button>
       </div>
 
-      {/* AdSense広告の表示 (AdSenseAdコンポーネントを使用) */}
-      {/* 広告がロードされた場合にのみコンテナを表示し、間延びを防ぐ */}
-      {!isLoading && ( 
-        <div className={`w-full text-center my-6 ${isAdLoaded ? '' : 'h-0 overflow-hidden'}`}> {/* ロードされるまで高さを0にし、オーバーフローを隠す */}
-          <AdSenseAd 
-            slot="YOUR_AD_UNIT_SLOT_ID" 
-            style={{ display: 'block', height: '100px', width: '320px', margin: 'auto' }} 
-            onAdLoad={() => setIsAdLoaded(true)} // 広告がロードされたら状態を更新
-          /> 
+      {/* AdSense広告の表示 (AdSenseAdコンポーネントを使用) はApp.jsに移動しました。
+          ここでは関連するコードを削除します。
+      {!isLoading && (
+        <div className={`w-full text-center my-6 ${isAdLoaded ? '' : 'h-0 overflow-hidden'}`}>
+          <AdSenseAd
+            slot="YOUR_AD_UNIT_SLOT_ID"
+            style={{ display: 'block', height: '100px', width: '320px', margin: 'auto' }}
+            onAdLoad={() => setIsAdLoaded(true)}
+          />
         </div>
       )}
+      */}
 
       {/* Store/User Dashboard */}
       <div className="mx-4 bg-white rounded-xl shadow-lg p-5 my-6 text-left text-black animate-slide-in-right">

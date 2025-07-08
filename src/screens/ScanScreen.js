@@ -17,8 +17,6 @@ const ScanScreen = ({
   setScannedStoreId // スキャンで店舗IDも設定できるように
 }) => {
 
-  // console.log("ScanScreen: コンポーネントがレンダリングされました。現在のscanMode:", scanMode); // デバッグログをコメントアウト
-
   // QrCodeScannerコンポーネントのrefを保持するためのref
   const qrScannerRef = useRef(null); 
 
@@ -27,13 +25,11 @@ const ScanScreen = ({
     setScanInputAmount('');
     setScanError('');
     setScannedStoreId(null); // 受取機能のために初期化
-    // console.log("ScanScreen: useEffect (初期化) が実行されました。"); // デバッグログをコメントアウト
-
+    
     // コンポーネントがアンマウントされるか、scanModeが変更されたときにカメラを停止するクリーンアップ
     return () => {
       if (qrScannerRef.current && qrScannerRef.current.stopCamera) {
         qrScannerRef.current.stopCamera();
-        // console.log("ScanScreen: クリーンアップ - カメラを停止しました。"); // デバッグログをコメントアウト
       }
     };
   }, [setScannedAmount, setScanInputAmount, setScanError, setScannedStoreId, scanMode]); // scanModeを依存配列に追加
@@ -92,12 +88,15 @@ const ScanScreen = ({
 
 
   const onResult = useCallback((result, error) => {
-    // console.log("ScanScreen: onResult - 関数がトリガーされました。"); // デバッグログをコメントアウト
-    // console.log("ScanScreen: onResult - rawResult object:", result); // デバッグログをコメントアウト
-    // console.log("ScanScreen: onResult - rawScannedData (result?.text):", result?.text); // デバッグログをコメントアウト
-    // console.log("ScanScreen: onResult - error object (from QrCodeScanner):", error); // デバッグログをコメントアウト
+    console.log("ScanScreen: onResult - 関数がトリガーされました。");
+    console.log("ScanScreen: onResult - rawResult object:", result);
+    console.log("ScanScreen: onResult - error object (from QrCodeScanner):", error);
 
-    if (result && result.text) { 
+    // ★QRコードが検出された場合のログを強化
+    if (result && result.text) {
+      console.log("ScanScreen: onResult - QRコードのテキストが検出されました:", result.text);
+      console.log("ScanScreen: onResult - QRコードのrawResult全体:", JSON.stringify(result, null, 2)); // resultオブジェクト全体を整形してログ出力
+
       let rawScannedData = result.text;
       let parsedAmount = NaN;
       let parsedStoreId = null; 
@@ -105,19 +104,19 @@ const ScanScreen = ({
       let parsedReceiverName = null; 
       let displayData = rawScannedData;
 
-      // console.log("ScanScreen: onResult - rawScannedData is NOT empty. Attempting Base64 decode and JSON parse."); // デバッグログをコメントアウト
+      console.log("ScanScreen: onResult - rawScannedData (result.text):", rawScannedData);
 
       try {
-        // Base64デコードのロジックを修正 (TextDecoderを使用)
+        // Base64デコードのロジック
         const decodedData = new TextDecoder().decode(Uint8Array.from(atob(rawScannedData), c => c.charCodeAt(0)));
-        // console.log("ScanScreen: onResult - Base64 decoded data (new method):", decodedData); // デバッグログをコメントアウト
+        console.log("ScanScreen: onResult - Base64 decoded data:", decodedData);
 
         const jsonData = JSON.parse(decodedData);
-        // console.log("ScanScreen: onResult - JSON parsed successfully:", jsonData); // デバッグログをコメントアウト
+        console.log("ScanScreen: onResult - JSON parsed successfully:", jsonData);
 
         // 新しいQRコード形式: {"receiverId": "...", "amount": ...}
         if (jsonData && jsonData.receiverId) {
-          // console.log("ScanScreen: onResult - 新しい受取人QRフォーマットを検出しました。"); // デバッグログをコメントアウト
+          console.log("ScanScreen: onResult - 新しい受取人QRフォーマットを検出しました。");
           parsedReceiverId = jsonData.receiverId;
           parsedReceiverName = jsonData.receiverName || '不明な受取人';
           if (typeof jsonData.amount === 'number' && jsonData.amount > 0) {
@@ -126,66 +125,66 @@ const ScanScreen = ({
           displayData = `受取人: ${parsedReceiverName} (ID: ${parsedReceiverId}), 金額: ${parsedAmount > 0 ? parsedAmount.toLocaleString() + '円' : '未指定'}`;
           
           if (parsedReceiverId) {
-            // console.log("ScanScreen: onResult - 受取人情報が見つかりました。支払い確認画面へ遷移します。"); // デバッグログをコメントアウト
+            console.log("ScanScreen: onResult - 受取人情報が見つかりました。支払い確認画面へ遷移します。");
             setScannedAmount(parsedAmount > 0 ? parsedAmount : null);
             setScanInputAmount(parsedAmount > 0 ? String(parsedAmount) : '');
             setScannedStoreId({ id: parsedReceiverId, name: parsedReceiverName }); // 受取人情報をセット
             setScanMode('initial'); // QRコードを読み取ったらすぐにスキャンモードを終了
             setScanError('');
             setScreen('payment_confirmation');
-            return;
+            return; // 成功した場合はここで処理を終了
           }
         } 
-        // 従来のQRコード形式 (金額のみ、または店舗ID+金額) - Base64デコードに失敗した場合のフォールバック
+        // 従来のQRコード形式 (金額のみ、または店舗ID+金額) - Base64デコードに成功した場合のフォールバック
         else if (jsonData && typeof jsonData.amount === 'number' && jsonData.amount > 0) {
-          // console.log("ScanScreen: onResult - 従来の金額QRフォーマットを検出しました。(Base64デコード後)"); // デバッグログをコメントアウト
+          console.log("ScanScreen: onResult - 従来の金額QRフォーマットを検出しました。(Base64デコード後)");
           parsedAmount = jsonData.amount;
           parsedStoreId = jsonData.storeId || null;
           displayData = JSON.stringify(jsonData);
         } else {
-          // console.warn("ScanScreen: onResult - 期待されるJSONフォーマットではありません。古い解析方法を試みます。(Base64デコード後)"); // デバッグログをコメントアウト
+          console.warn("ScanScreen: onResult - 期待されるJSONフォーマットではありません。古い解析方法を試みます。(Base64デコード後)");
           const cleanedData = decodedData.replace(/[^0-9]/g, '').trim(); // デコードされたデータを使用
           parsedAmount = parseInt(cleanedData, 10);
           displayData = decodedData;
         }
       } catch (decodeOrJsonError) {
-        // console.warn("ScanScreen: onResult - Base64デコードまたはJSON解析に失敗しました。元のrawScannedDataで直接解析を試みます:", decodeOrJsonError); // デバッグログをコメントアウト
+        console.error("ScanScreen: onResult - Base64デコードまたはJSON解析に失敗しました。元のrawScannedDataで直接解析を試みます:", decodeOrJsonError);
         // Base64デコードに失敗した場合、元のrawScannedDataで直接JSON解析を試みる（従来のQRコード対応）
         try {
           const originalJsonData = JSON.parse(rawScannedData);
           if (originalJsonData && typeof originalJsonData.amount === 'number' && originalJsonData.amount > 0) {
-            // console.log("ScanScreen: onResult - 従来の金額QRフォーマットを検出しました。(Base64デコード前)"); // デバッグログをコメントアウト
+            console.log("ScanScreen: onResult - 従来の金額QRフォーマットを検出しました。(Base64デコード前)");
             parsedAmount = originalJsonData.amount;
             parsedStoreId = originalJsonData.storeId || null;
             displayData = rawScannedData;
           } else {
-             // console.warn("ScanScreen: onResult - 従来のJSONフォーマットでもありません。数値解析を試みます。"); // デバッグログをコメントアウト
+             console.warn("ScanScreen: onResult - 従来のJSONフォーマットでもありません。数値解析を試みます。");
              const cleanedData = rawScannedData.replace(/[^0-9]/g, '').trim();
              parsedAmount = parseInt(cleanedData, 10);
              displayData = rawScannedData;
           }
         } catch (originalJsonError) {
-          // console.warn("ScanScreen: onResult - 従来のJSON解析も失敗しました。数値解析を試みます:", originalJsonError); // デバッグログをコメントアウト
+          console.error("ScanScreen: onResult - 従来のJSON解析も失敗しました。数値解析を試みます:", originalJsonError);
           const cleanedData = rawScannedData.replace(/[^0-9]/g, '').trim();
           parsedAmount = parseInt(cleanedData, 10);
           displayData = rawScannedData;
         }
       }
 
-      // console.log("ScanScreen: onResult - 最終的な解析結果: parsedAmount:", parsedAmount, "isNaN:", isNaN(parsedAmount)); // デバッグログをコメントアウト
+      console.log("ScanScreen: onResult - 最終的な解析結果: parsedAmount:", parsedAmount, "isNaN:", isNaN(parsedAmount), "parsedReceiverId:", parsedReceiverId);
 
       // このブロックは、解析が失敗した場合にのみヒットするはず
       if (!isNaN(parsedAmount) && parsedAmount > 0) {
-        // console.log("ScanScreen: onResult - 金額が有効です。支払い確認画面へ遷移します。"); // デバッグログをコメントアウト
+        console.log("ScanScreen: onResult - 金額が有効です。支払い確認画面へ遷移します。");
         setScannedAmount(parsedAmount);
         setScanInputAmount(String(parsedAmount));
-        setScannedStoreId(parsedStoreId);
+        setScannedStoreId(parsedStoreId); // 従来の店舗ID（nullの可能性あり）
         
         setScanMode('initial'); // QRコードを読み取ったらすぐにスキャンモードを終了
         setScanError('');
         setScreen('payment_confirmation');
       } else {
-        // console.log("ScanScreen: onResult - QRデータエラーモーダルを表示します。"); // デバッグログをコメントアウト
+        console.log("ScanScreen: onResult - QRデータエラーモーダルを表示します。");
         setScanError("無効なQRコードデータです。有効な金額または受取人情報が含まれていません。");
         setScanMode('initial'); // スキャンモードを終了
         setModal({
@@ -197,9 +196,8 @@ const ScanScreen = ({
         });
       }
     } else { 
-      // console.warn("ScanScreen: onResult - result.textが空または未定義です。QRコードが検出されなかったか、デコードに失敗しました。"); // デバッグログをコメントアウト
+      console.warn("ScanScreen: onResult - result.textが空または未定義です。QRコードが検出されなかったか、デコードに失敗しました。");
       setScanError("QRコードが検出されませんでした。またはデコードに失敗しました。");
-      setScanMode('initial'); // スキャンモードを終了
       setModal({
         isOpen: true,
         title: 'スキャン失敗',
@@ -207,6 +205,7 @@ const ScanScreen = ({
         onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
         showCancelButton: false,
       });
+      setScanMode('initial'); // スキャンモードを終了
     }
 
     if (error) {
@@ -286,7 +285,8 @@ const ScanScreen = ({
               ref={qrScannerRef}
               onResult={onResult}
               onError={onError}
-              constraints={{ video: { facingMode: 'environment' } }}
+              // ★ここを背面カメラを強制する設定に戻します★
+              constraints={{ video: { facingMode: 'environment' } }} 
               scanDelay={500}
               videoContainerStyle={{ padding: '0px' }}
               videoStyle={{ width: '100%', height: '100%', objectFit: 'cover' }}

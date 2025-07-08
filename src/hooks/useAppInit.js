@@ -1,34 +1,10 @@
 // src/hooks/useAppInit.js
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react'; // ★ useRef を追加
 import { onAuthStateChanged, signInAnonymously, signInWithCustomToken } from 'firebase/auth';
 import { doc, setDoc, collection, onSnapshot } from 'firebase/firestore';
 import { firebaseDb, firebaseAuth } from '../firebase/firebaseConfig'; // Firebaseインスタンスをインポート
 
-/**
- * アプリケーションの初期化、Firebase認証、および初期データロードを管理するカスタムフック。
- * @returns {{
- * userId: string|null,
- * isFirebaseReady: boolean,
- * isInitialDataLoaded: boolean,
- * splashScreenTimerCompleted: boolean,
- * balance: number,
- * points: number,
- * userName: string,
- * profileImage: string|null,
- * history: Array<object>,
- * notifications: Array<object>,
- * auth: object,
- * db: object,
- * appId: string,
- * setBalance: (value: number) => void, // ★追加
- * setPoints: (value: number) => void,   // ★追加
- * setUserName: (value: string) => void, // ★追加
- * setProfileImage: (value: string|null) => void, // ★追加
- * setHistory: (value: Array<object>) => void, // ★追加
- * setNotifications: (value: Array<object>) => void // ★追加
- * }} アプリケーションの初期状態とFirebaseインスタンス、および状態更新関数
- */
 export const useAppInit = () => {
   const [userId, setUserId] = useState(null);
   const [isFirebaseReady, setIsFirebaseReady] = useState(false);
@@ -44,7 +20,10 @@ export const useAppInit = () => {
 
   const db = firebaseDb;
   const auth = firebaseAuth;
-  const appId = 're-mat-mvp'; // ★ここにあなたのFirebaseプロジェクトIDを直接設定
+  const appId = 're-mat-mvp';
+
+  // Firestoreリスナーのunsubscribe関数を保持する参照
+  const unsubscribeRefs = useRef({});
 
   // Firebase初期化と認証のuseEffect
   useEffect(() => {
@@ -53,7 +32,23 @@ export const useAppInit = () => {
         return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      // ユーザーIDが変更された場合、古いFirestoreリスナーを解除
+      if (user?.uid !== userId) {
+        console.log("useAppInit: User ID changed or user logged out. Unsubscribing old Firestore listeners.");
+        Object.values(unsubscribeRefs.current).forEach(unsub => unsub());
+        unsubscribeRefs.current = {}; // リスナー参照をクリア
+        setIsInitialDataLoaded(false); // データがリセットされるため、再度ロードが必要
+        
+        // 状態をリセット
+        setBalance(0);
+        setPoints(0);
+        setUserName('');
+        setProfileImage(null);
+        setHistory([]);
+        setNotifications([]);
+      }
+
       if (user) {
         setUserId(user.uid);
         console.log("useAppInit: Auth state changed: Logged in as", user.uid, "Email Verified:", user.emailVerified);
@@ -92,8 +87,13 @@ export const useAppInit = () => {
       setIsFirebaseReady(true);
     });
 
-    return () => unsubscribe();
-  }, [auth, db]);
+    return () => {
+      unsubscribeAuth();
+      // コンポーネントアンマウント時にすべてのリスナーを解除
+      Object.values(unsubscribeRefs.current).forEach(unsub => unsub());
+      console.log("useAppInit: All Firestore listeners unsubscribed on component unmount.");
+    };
+  }, [auth, db, userId]); // userId を依存配列に追加
 
   // 初期データ読み込みのuseEffect
   useEffect(() => {
@@ -116,7 +116,7 @@ export const useAppInit = () => {
     
     // プロフィールデータ
     const profileDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'userProfile');
-    const unsubscribeProfile = onSnapshot(profileDocRef, (docSnap) => {
+    unsubscribeRefs.current.profile = onSnapshot(profileDocRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setBalance(data.balance || 0);
@@ -137,7 +137,7 @@ export const useAppInit = () => {
         checkAllInitialDataLoaded();
       }
     }, (error) => {
-      console.error("useAppInit: Error fetching profile:", error);
+      console.error("useAppInit: Error fetching profile:", error); //
       if (!profileLoaded) {
         profileLoaded = true;
         checkAllInitialDataLoaded();
@@ -146,7 +146,7 @@ export const useAppInit = () => {
 
     // 取引履歴データ
     const transactionsColRef = collection(db, `artifacts/${appId}/users/${userId}/transactions`);
-    const unsubscribeHistory = onSnapshot(transactionsColRef, (snapshot) => {
+    unsubscribeRefs.current.history = onSnapshot(transactionsColRef, (snapshot) => {
       const fetchedHistory = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
@@ -159,7 +159,7 @@ export const useAppInit = () => {
         checkAllInitialDataLoaded();
       }
     }, (error) => {
-      console.error("useAppInit: Error fetching history:", error);
+      console.error("useAppInit: Error fetching history:", error); //
       if (!historyLoaded) {
         historyLoaded = true;
         checkAllInitialDataLoaded();
@@ -168,7 +168,7 @@ export const useAppInit = () => {
 
     // 通知データ
     const notificationsColRef = collection(db, `artifacts/${appId}/users/${userId}/notifications`);
-    const unsubscribeNotifications = onSnapshot(notificationsColRef, (snapshot) => {
+    unsubscribeRefs.current.notifications = onSnapshot(notificationsColRef, (snapshot) => {
       const fetchedNotifications = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -180,7 +180,7 @@ export const useAppInit = () => {
         checkAllInitialDataLoaded();
       }
     }, (error) => {
-      console.error("useAppInit: Error fetching notifications:", error);
+      console.error("useAppInit: Error fetching notifications:", error); //
       if (!notificationsLoaded) {
         notificationsLoaded = true;
         checkAllInitialDataLoaded();
@@ -188,14 +188,14 @@ export const useAppInit = () => {
     });
 
     return () => {
-      unsubscribeProfile();
-      unsubscribeHistory();
-      unsubscribeNotifications();
-      console.log("useAppInit: Firestore listeners unsubscribed.");
+      // userIdの変更でuseEffectが再実行される前に、以前のリスナーを解除
+      console.log("useAppInit: Unsubscribing Firestore listeners due to userId change or unmount.");
+      Object.values(unsubscribeRefs.current).forEach(unsub => unsub());
+      unsubscribeRefs.current = {}; // リスナー参照をクリア
     };
   }, [db, userId, isFirebaseReady, appId]);
 
-  // スプラッシュスクリーンの最低表示時間確保のuseEffect (useAppInit内に移動)
+  // スプラッシュスクリーンの最低表示時間確保のuseEffect
   useEffect(() => {
     const timer = setTimeout(() => {
       setSplashScreenTimerCompleted(true);
@@ -215,14 +215,15 @@ export const useAppInit = () => {
     profileImage,
     history,
     notifications,
-    auth, // Firebase Authインスタンスも返す
-    db,   // Firebase Firestoreインスタンスも返す
-    appId, // アプリIDも返す
-    setBalance, // ★追加
-    setPoints,   // ★追加
-    setUserName, // ★追加
-    setProfileImage, // ★追加
-    setHistory, // ★追加
-    setNotifications // ★追加
+    auth,
+    db,
+    appId,
+    setBalance,
+    setPoints,
+    setUserName,
+    setProfileImage,
+    setHistory,
+    setNotifications,
+    setUserId
   };
 };
