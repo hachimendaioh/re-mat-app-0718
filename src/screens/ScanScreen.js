@@ -92,19 +92,19 @@ const ScanScreen = ({
     console.log("ScanScreen: onResult - rawResult object:", result);
     console.log("ScanScreen: onResult - error object (from QrCodeScanner):", error);
 
-    // ★QRコードが検出された場合のログを強化
-    if (result && result.text) {
-      console.log("ScanScreen: onResult - QRコードのテキストが検出されました:", result.text);
+    // ★result.text の代わりに result.data を使用するように変更
+    if (result && result.data) { 
+      console.log("ScanScreen: onResult - QRコードのテキストが検出されました:", result.data);
       console.log("ScanScreen: onResult - QRコードのrawResult全体:", JSON.stringify(result, null, 2)); // resultオブジェクト全体を整形してログ出力
 
-      let rawScannedData = result.text;
+      let rawScannedData = result.data; // ★ここを result.data に変更
       let parsedAmount = NaN;
       let parsedStoreId = null; 
       let parsedReceiverId = null; 
       let parsedReceiverName = null; 
       let displayData = rawScannedData;
 
-      console.log("ScanScreen: onResult - rawScannedData (result.text):", rawScannedData);
+      console.log("ScanScreen: onResult - rawScannedData (result.data):", rawScannedData); // ★ログも変更
 
       try {
         // Base64デコードのロジック
@@ -196,7 +196,8 @@ const ScanScreen = ({
         });
       }
     } else { 
-      console.warn("ScanScreen: onResult - result.textが空または未定義です。QRコードが検出されなかったか、デコードに失敗しました。");
+      // ★result.data が空または未定義の場合の警告メッセージも修正
+      console.warn("ScanScreen: onResult - result.dataが空または未定義です。QRコードが検出されなかったか、デコードに失敗しました。");
       setScanError("QRコードが検出されませんでした。またはデコードに失敗しました。");
       setModal({
         isOpen: true,
@@ -285,7 +286,7 @@ const ScanScreen = ({
               ref={qrScannerRef}
               onResult={onResult}
               onError={onError}
-              // ★ここを背面カメラを強制する設定に戻します★
+              // 背面カメラを強制する設定
               constraints={{ video: { facingMode: 'environment' } }} 
               scanDelay={500}
               videoContainerStyle={{ padding: '0px' }}

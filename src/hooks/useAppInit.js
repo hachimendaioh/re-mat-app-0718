@@ -1,9 +1,10 @@
 // src/hooks/useAppInit.js
 
-import { useState, useEffect, useRef } from 'react'; // ★ useRef を追加
+import { useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, signInAnonymously, signInWithCustomToken } from 'firebase/auth';
 import { doc, setDoc, collection, onSnapshot } from 'firebase/firestore';
-import { firebaseDb, firebaseAuth } from '../firebase/firebaseConfig'; // Firebaseインスタンスをインポート
+// ★★★ここを修正★★★
+import { firebaseDb, firebaseAuth, firebaseApp } from '../firebase/firebaseConfig'; // Firebaseインスタンスをインポート
 
 export const useAppInit = () => {
   const [userId, setUserId] = useState(null);
@@ -20,6 +21,7 @@ export const useAppInit = () => {
 
   const db = firebaseDb;
   const auth = firebaseAuth;
+  const app = firebaseApp; // app インスタンスを取得
   const appId = 're-mat-mvp';
 
   // Firestoreリスナーのunsubscribe関数を保持する参照
@@ -27,7 +29,7 @@ export const useAppInit = () => {
 
   // Firebase初期化と認証のuseEffect
   useEffect(() => {
-    if (!auth || !db) {
+    if (!auth || !db || !app) { // app もチェックに追加
         console.log("useAppInit: Waiting for Firebase instances to be ready...");
         return;
     }
@@ -93,7 +95,7 @@ export const useAppInit = () => {
       Object.values(unsubscribeRefs.current).forEach(unsub => unsub());
       console.log("useAppInit: All Firestore listeners unsubscribed on component unmount.");
     };
-  }, [auth, db, userId]); // userId を依存配列に追加
+  }, [auth, db, app, userId]); // app も依存配列に追加
 
   // 初期データ読み込みのuseEffect
   useEffect(() => {
@@ -137,7 +139,7 @@ export const useAppInit = () => {
         checkAllInitialDataLoaded();
       }
     }, (error) => {
-      console.error("useAppInit: Error fetching profile:", error); //
+      console.error("useAppInit: Error fetching profile:", error);
       if (!profileLoaded) {
         profileLoaded = true;
         checkAllInitialDataLoaded();
@@ -159,7 +161,7 @@ export const useAppInit = () => {
         checkAllInitialDataLoaded();
       }
     }, (error) => {
-      console.error("useAppInit: Error fetching history:", error); //
+      console.error("useAppInit: Error fetching history:", error);
       if (!historyLoaded) {
         historyLoaded = true;
         checkAllInitialDataLoaded();
@@ -180,7 +182,7 @@ export const useAppInit = () => {
         checkAllInitialDataLoaded();
       }
     }, (error) => {
-      console.error("useAppInit: Error fetching notifications:", error); //
+      console.error("useAppInit: Error fetching notifications:", error);
       if (!notificationsLoaded) {
         notificationsLoaded = true;
         checkAllInitialDataLoaded();
@@ -193,7 +195,7 @@ export const useAppInit = () => {
       Object.values(unsubscribeRefs.current).forEach(unsub => unsub());
       unsubscribeRefs.current = {}; // リスナー参照をクリア
     };
-  }, [db, userId, isFirebaseReady, appId]);
+  }, [db, userId, isFirebaseReady, appId, app]); // app を依存配列に追加
 
   // スプラッシュスクリーンの最低表示時間確保のuseEffect
   useEffect(() => {
@@ -217,6 +219,7 @@ export const useAppInit = () => {
     notifications,
     auth,
     db,
+    app,
     appId,
     setBalance,
     setPoints,

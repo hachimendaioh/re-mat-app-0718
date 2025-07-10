@@ -3,14 +3,13 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 // Firebase imports (firebaseConfig.jsからインポート)
 // useAppInitフック内でFirebaseインスタンスを取得するため、ここでは直接インポートしない
 import { doc, setDoc, updateDoc, collection, query, onSnapshot, addDoc, serverTimestamp, writeBatch, where, getDocs, getDoc } from 'firebase/firestore';
-// ★Cloud Functions のインポートを追加
-import { getFunctions, httpsCallable } from 'firebase/functions'; // ★この行を追加
+// Cloud Functions のインポートを追加
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 // 共通コンポーネントのインポート
 import LoadingSpinner from './components/common/LoadingSpinner';
 import CustomModal from './components/common/CustomModal';
 import ToastNotification from './components/common/ToastNotification';
-// import HorizontalAdSense from './components/common/HorizontalAdSense'; // ★この行は削除済みであることを確認
 
 // 各画面コンポーネントのインポート
 import SplashScreen from './screens/SplashScreen';
@@ -71,6 +70,7 @@ export default function ReMatApp() {
     notifications, 
     auth, 
     db, 
+    app, // useAppInitからappインスタンスを受け取る
     appId,
     setBalance,
     setPoints,
@@ -256,7 +256,7 @@ export default function ReMatApp() {
 
   // handlePayment関数はPaymentConfirmationScreenから呼ばれるように変更
   const confirmPayment = useCallback(async (paymentAmount, storeNameForHistory = 'QR決済店舗') => { // 金額と店舗名を引数として受け取る
-    console.log("confirmPayment: 関数が呼び出されました。"); // デバッグログ
+    console.log("confirmPayment: 関数が呼び出されました。");
 
     setModal({
       isOpen: true,
@@ -267,19 +267,21 @@ export default function ReMatApp() {
       onConfirm: () => {},
     });
 
-    if (!auth.currentUser) {
-      setModal({
-        isOpen: true,
-        title: '認証エラー',
-        message: '支払いを行うにはログインが必要です。',
-        onConfirm: () => { resetModal(); setScreen('login'); },
-        showCancelButton: false,
-      });
-      return;
+    // 匿名ユーザーチェックを強化
+    if (!auth.currentUser || auth.currentUser.isAnonymous) {
+        setModal({
+            isOpen: true,
+            title: '機能制限',
+            message: '支払いを行うにはアカウント登録またはログインが必要です。',
+            onConfirm: () => { resetModal(); setScreen('login'); },
+            showCancelButton: false,
+        });
+        return;
     }
 
-    if (!db || !userId) {
-      console.error("Firestore not initialized or user not authenticated.");
+    // Firebase初期化状態とuserIdのチェック
+    if (!db || !userId || !isFirebaseReady) { // isFirebaseReady のチェックも追加
+      console.error("Firestore not initialized, user not authenticated, or Firebase not ready.");
       setModal({
         isOpen: true,
         title: 'エラー',
@@ -299,11 +301,44 @@ export default function ReMatApp() {
     console.log("confirmPayment: receiverId =", receiverId); // デバッグログ
     console.log("confirmPayment: receiverName =", receiverName); // デバッグログ
 
+    // Cloud Function呼び出し前の認証状態の詳細ログ (強化)
+    console.log("confirmPayment: Cloud Function呼び出し前の認証状態の詳細:");
+    console.log("confirmPayment: auth.currentUser:", auth.currentUser);
+    console.log("confirmPayment: auth.currentUser.uid:", auth.currentUser?.uid);
+    console.log("confirmPayment: auth.currentUser.email:", auth.currentUser?.email); // メールアドレスも確認
+    console.log("confirmPayment: auth.currentUser.emailVerified:", auth.currentUser?.emailVerified);
+    console.log("confirmPayment: auth.currentUser.isAnonymous:", auth.currentUser?.isAnonymous);
+    console.log("confirmPayment: userId (from useAppInit):", userId);
+    console.log("confirmPayment: isFirebaseReady (from useAppInit):", isFirebaseReady); // Firebase Ready状態も確認
+    console.log("confirmPayment: isInitialDataLoaded (from useAppInit):", isInitialDataLoaded); // 初期データロード状態も確認
 
-    // ★ここからCloud Functionの呼び出しに置き換える★
+    // ★追加: IDトークンを取得してログに出力
+    let idToken = null;
+    if (auth.currentUser) {
+      try {
+        idToken = await auth.currentUser.getIdToken(true); // 強制的にリフレッシュして最新のトークンを取得
+        console.log("confirmPayment: auth.currentUser.getIdToken() success. Token length:", idToken.length);
+        // console.log("confirmPayment: auth.currentUser.idToken:", idToken); // トークン全体は機密情報なので、本番では出力しない
+      } catch (tokenError) {
+        console.error("confirmPayment: Failed to get ID token:", tokenError);
+        setModal({
+          isOpen: true,
+          title: '認証トークンエラー',
+          message: `認証トークンの取得に失敗しました。再度ログインしてください。\n詳細: ${tokenError.message}`,
+          onConfirm: () => { resetModal(); setScreen('login'); },
+          showCancelButton: false,
+        });
+        return; // トークン取得失敗時は処理を中断
+      }
+    } else {
+      console.warn("confirmPayment: auth.currentUser is null. Cannot get ID token.");
+    }
+
+
     try {
-      const functions = getFunctions(); // Firebase Functionsインスタンスを取得
-      const processPaymentCallable = httpsCallable(functions, 'processPayment'); // Callable Functionを定義
+      // getFunctionsにappインスタンスを渡す (必須)
+      const functionsInstance = getFunctions(app); 
+      const processPaymentCallable = httpsCallable(functionsInstance, 'processPayment');
 
       // Cloud Functionを呼び出す
       const result = await processPaymentCallable({
@@ -319,13 +354,12 @@ export default function ReMatApp() {
         setScannedAmount(null);
         setScannedStoreId(null);
         setScanInputAmount('');
-        setLastTransactionDetails({ type: 'payment', amount: paymentAmount }); // 支払い完了のトランザクション詳細を記録
+        setLastTransactionDetails({ type: 'payment', amount: paymentAmount });
         setScanMode('initial');
         setScreen('支払い完了');
         resetModal();
         setToast({ message: `¥${paymentAmount.toLocaleString()}の支払いが完了しました！`, type: 'success' });
       } else {
-        // Cloud Functionからのエラーメッセージを表示
         setModal({
           isOpen: true,
           title: '支払い失敗',
@@ -339,7 +373,9 @@ export default function ReMatApp() {
     } catch (error) {
       console.error("Error calling Cloud Function:", error);
       let errorMessage = '送金処理中に予期せぬエラーが発生しました。';
-      if (error.code) {
+      if (error.code === 'functions/unauthenticated') { // 特定のエラーコードに対するメッセージ
+        errorMessage = '認証されていません。ログイン状態を確認してください。';
+      } else if (error.code) {
         errorMessage = `エラーコード: ${error.code}\nメッセージ: ${error.message}`;
       } else if (error.message) {
         errorMessage = error.message;
@@ -354,9 +390,8 @@ export default function ReMatApp() {
       });
       setToast({ message: `支払い失敗: ${errorMessage}`, type: 'error' });
     }
-    // ★ここまでCloud Functionの呼び出しに置き換え★
 
-  }, [balance, userId, db, auth, appId, setModal, resetModal, setToast, setScreen, setScannedAmount, setScannedStoreId, setScanInputAmount, setLastTransactionDetails, setScanMode, userName, setBalance, setPoints]); // setBalance, setPointsを依存配列に追加
+  }, [balance, userId, db, auth, app, isFirebaseReady, isInitialDataLoaded, appId, setModal, resetModal, setToast, setScreen, setScannedAmount, setScannedStoreId, setScanInputAmount, setLastTransactionDetails, setScanMode, userName, setBalance, setPoints]); // app, isFirebaseReady, isInitialDataLoaded を依存配列に追加
 
   const handleNotificationRead = useCallback(async (id) => {
     if (!db || !userId) {

@@ -15,7 +15,7 @@ const db = admin.firestore();
  * ユーザーAからユーザーBへ安全に金額を送金し、残高、ポイント、取引履歴、通知を更新します。
  *
  * @param {object} data - クライアントから送信されるデータ
- * @param {string} data.senderId - 送金元ユーザーのUID
+ * @param {string} data.senderId - 送金元ユーザーのUID (context.auth.uidから取得されるため、実際には使用しない)
  * @param {string} data.receiverId - 受取人ユーザーのUID
  * @param {number} data.amount - 送金する金額
  * @param {string} [data.senderName] - 送金元ユーザーの名前 (通知用、オプション)
@@ -24,6 +24,18 @@ const db = admin.firestore();
  * @returns {object} 処理結果を示すオブジェクト
  */
 exports.processPayment = functions.https.onCall(async (data, context) => {
+    // ★★★ここから追加するデバッグログ★★★
+    console.log('Cloud Function: processPayment called.');
+    console.log('Cloud Function: context object:', JSON.stringify(context, null, 2)); // contextオブジェクト全体を整形してログ出力
+    console.log('Cloud Function: context.auth:', context.auth);
+    if (context.auth) {
+        console.log('Cloud Function: context.auth.uid:', context.auth.uid);
+        console.log('Cloud Function: context.auth.token:', context.auth.token); // IDトークンのペイロード (機密情報を含まない)
+    } else {
+        console.warn('Cloud Function: context.auth is NULL. User is not authenticated.');
+    }
+    // ★★★ここまで追加するデバッグログ★★★
+
     // 1. 認証チェック
     // 呼び出し元が認証されていることを確認
     if (!context.auth) {
@@ -54,7 +66,7 @@ exports.processPayment = functions.https.onCall(async (data, context) => {
 
     // FirestoreのApp IDを取得 (Reactアプリと同じIDを使用)
     // ここではハードコードしていますが、環境変数として設定することも可能です
-    const appId = 're-mat-mvp'; // ★re-mat-mvpあなたのFirebaseプロジェクトIDに置き換えてください★
+    const appId = 're-mat-mvp'; // ★あなたのFirebaseプロジェクトIDに置き換えてください★
 
     const senderProfileRef = db.doc(`artifacts/${appId}/users/${senderId}/profile/userProfile`);
     const receiverProfileRef = db.doc(`artifacts/${appId}/users/${receiverId}/profile/userProfile`);
