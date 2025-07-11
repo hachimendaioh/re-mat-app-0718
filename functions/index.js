@@ -23,10 +23,12 @@ const db = admin.firestore();
  * @param {object} context - 認証情報を含むコンテキスト
  * @returns {object} 処理結果を示すオブジェクト
  */
-exports.processPayment = functions.https.onCall(async (data, context) => {
+// Functionsのリージョンを明示的に指定 (例: 東京)
+exports.processPayment = functions.region('us-central1').https.onCall(async (data, context) => {
     // ★★★ここから追加するデバッグログ★★★
     console.log('Cloud Function: processPayment called.');
-    console.log('Cloud Function: context object:', JSON.stringify(context, null, 2)); // contextオブジェクト全体を整形してログ出力
+    // contextオブジェクト全体をJSON.stringifyすると循環参照エラーになるため、コメントアウト
+    // console.log('Cloud Function: context object:', JSON.stringify(context, null, 2)); 
     console.log('Cloud Function: context.auth:', context.auth);
     if (context.auth) {
         console.log('Cloud Function: context.auth.uid:', context.auth.uid);

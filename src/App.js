@@ -312,7 +312,7 @@ export default function ReMatApp() {
     console.log("confirmPayment: isFirebaseReady (from useAppInit):", isFirebaseReady); // Firebase Ready状態も確認
     console.log("confirmPayment: isInitialDataLoaded (from useAppInit):", isInitialDataLoaded); // 初期データロード状態も確認
 
-    // ★追加: IDトークンを取得してログに出力
+    // IDトークンを取得してログに出力
     let idToken = null;
     if (auth.currentUser) {
       try {
@@ -336,8 +336,8 @@ export default function ReMatApp() {
 
 
     try {
-      // getFunctionsにappインスタンスを渡す (必須)
-      const functionsInstance = getFunctions(app); 
+      // getFunctionsにappインスタンスとリージョンを渡す (重要)
+      const functionsInstance = getFunctions(app, 'asia-northeast1'); // ★リージョンを明示的に指定
       const processPaymentCallable = httpsCallable(functionsInstance, 'processPayment');
 
       // Cloud Functionを呼び出す
