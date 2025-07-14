@@ -1,103 +1,95 @@
-import React, { useEffect, useState } from 'react';
-import LoadingSpinner from '../components/common/LoadingSpinner'; // LoadingSpinnerをインポート
+import React from 'react';
+import CustomModal from '../components/common/CustomModal'; // CustomModalのパスを確認
 
-const PaymentConfirmationScreen = ({ amount, balance, storeId, onConfirmPayment, onCancelPayment, isLoading }) => {
-  // storeIdがオブジェクトとして渡されることを想定
-  const isReceiverPayment = storeId && typeof storeId === 'object' && storeId.id;
-  const receiverId = isReceiverPayment ? storeId.id : null;
-  const receiverName = isReceiverPayment ? storeId.name : null;
-  const storeNameDisplay = isReceiverPayment ? receiverName : (storeId || '不明な店舗'); // 受取人名優先、なければ従来の店舗ID
+/**
+ * 支払い確認画面コンポーネント。
+ * QRコードスキャン後に支払い内容を表示し、ユーザーに確認を促します。
+ *
+ * @param {object} props - コンポーネントのプロパティ
+ * @param {number} props.amount - 支払い金額
+ * @param {number} props.balance - 現在のユーザー残高
+ * @param {object} props.storeId - スキャンされた店舗情報（IDと名前を含むオブジェクト）
+ * @param {function} props.onConfirmPayment - 支払い確定時に呼び出されるコールバック関数
+ * @param {function} props.onCancelPayment - 支払いキャンセル時に呼び出されるコールバック関数
+ * @param {boolean} props.isLoading - 支払い処理中かどうかを示すフラグ
+ * @param {function} props.setModal - App.jsから渡されるモーダル制御関数
+ */
+export default function PaymentConfirmationScreen({
+  amount,
+  balance,
+  storeId,
+  onConfirmPayment = () => { console.warn('onConfirmPayment is not provided'); }, // ★修正: デフォルトプロップを追加★
+  onCancelPayment,
+  isLoading,
+  setModal // App.jsから渡されるsetModal
+}) {
+  // storeIdから店舗名とIDを抽出
+  const receiverId = storeId?.id || '不明';
+  const storeName = storeId?.name || '不明な店舗';
 
-  const remainingBalance = balance - amount;
-
-  // ローディング状態を管理するための内部ステート
-  const [isProcessing, setIsProcessing] = useState(isLoading);
-
-  useEffect(() => {
-    setIsProcessing(isLoading); // 親からのisLoading propを同期
-  }, [isLoading]);
-
-  const handleConfirm = async () => {
-    setIsProcessing(true); // 処理開始時にローディングをtrueに
-    // onConfirmPaymentはApp.jsのconfirmPaymentを呼び出す
-    await onConfirmPayment(storeNameDisplay); // 店舗名または受取人名を渡す
-    // onConfirmPaymentの完了後にApp.jsで画面遷移が行われるため、ここではisProcessingをfalseにする必要はない
+  // 支払い確定ボタンがクリックされた時のハンドラ
+  const handleConfirmClick = () => {
+    console.log("PaymentConfirmationScreen: 支払い確定ボタンがクリックされました。");
+    console.log("PaymentConfirmationScreen: onConfirmPayment を呼び出します。");
+    // 親コンポーネント (App.js) から渡された onConfirmPayment 関数を呼び出す
+    // ここで storeName を渡すことで、App.jsのconfirmPayment関数が履歴に店舗名を記録できるようになります。
+    onConfirmPayment(storeName);
   };
 
-  const handleCancel = () => {
+  // 支払いキャンセルボタンがクリックされた時のハンドラ
+  const handleCancelClick = () => {
+    console.log("PaymentConfirmationScreen: 支払いキャンセルボタンがクリックされました。");
+    // 親コンポーネント (App.js) から渡された onCancelPayment 関数を呼び出す
     onCancelPayment();
   };
 
+  // モーダルに表示するメッセージを整形
+  const modalMessage = `以下の内容で支払いを実行します。\n\n店舗: ${storeName}\n金額: ¥${amount ? amount.toLocaleString() : '0'}\n現在の残高: ¥${balance ? balance.toLocaleString() : '0'}`;
+
   return (
-    <div className="p-4 text-white text-center flex flex-col items-center justify-center min-h-[calc(100vh-120px)] font-inter bg-gray-900">
-      <h2 className="text-3xl font-bold mb-6 animate-fade-in-up">支払い内容の確認</h2>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-4">
+      <h2 className="text-3xl font-bold mb-6 text-green-400">支払い確認</h2>
 
-      <div className="bg-gray-800 rounded-xl shadow-lg p-6 w-full max-w-sm mb-6 animate-slide-in-right">
-        <div className="mb-4">
-          <p className="text-gray-300 text-lg">
-            {isReceiverPayment ? '受取人:' : '店舗名:'}
-          </p>
-          <p className="text-white text-3xl font-bold break-all">
-            {storeNameDisplay}
-          </p>
-          {isReceiverPayment && (
-            <p className="text-gray-400 text-sm break-all">
-              ID: {receiverId}
-            </p>
-          )}
-          {!storeId && ( // storeIdがnullまたはundefinedの場合のみ表示
-            <p className="text-red-400 text-sm mt-1">店舗情報の取得に失敗しました。</p>
-          )}
-        </div>
-
-        <hr className="border-gray-700 my-4" />
-
-        <div className="flex justify-between items-center mb-2">
-          <p className="text-gray-300 text-lg">お支払い金額</p>
-          <p className="text-red-400 text-3xl font-extrabold">¥{amount.toLocaleString()}</p>
-        </div>
-
-        <div className="flex justify-between items-center mb-2">
-          <p className="text-gray-300 text-lg">現在の残高</p>
-          <p className="text-blue-400 text-xl font-bold">¥{balance.toLocaleString()}</p>
-        </div>
-
-        <div className="flex justify-between items-center">
-          <p className="text-gray-300 text-lg">支払い後の残高</p>
-          <p className={`text-xl font-extrabold ${remainingBalance < 0 ? 'text-red-500' : 'text-green-400'}`}>
-            ¥{remainingBalance.toLocaleString()}
-          </p>
-        </div>
+      {/* 支払い詳細の表示 */}
+      <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-sm mb-8 text-center animate-fade-in-up">
+        <p className="text-xl font-semibold mb-4">店舗: {storeName}</p>
+        <p className="text-4xl font-extrabold text-white mb-4">¥{amount ? amount.toLocaleString() : '0'}</p>
+        <p className="text-lg text-gray-300">現在の残高: ¥{balance ? balance.toLocaleString() : '0'}</p>
+        <p className="text-sm text-gray-500 mt-2">受取人ID: {receiverId}</p>
       </div>
 
-      {isProcessing ? (
-        <div className="flex flex-col items-center justify-center bg-gray-700 p-6 rounded-xl shadow-lg w-full max-w-sm">
-          <LoadingSpinner />
-          <p className="text-white mt-4">処理中...</p>
-        </div>
-      ) : (
-        <div className="flex flex-col space-y-4 w-full max-w-sm animate-fade-in">
-          <p className="text-gray-300 text-lg">上記内容で支払いを行いますか？</p>
-          <button
-            onClick={handleConfirm}
-            className="bg-red-600 text-white px-8 py-3 rounded-full text-lg font-semibold shadow-md hover:bg-red-700 transition-all duration-300 transform active:scale-95"
-            disabled={remainingBalance < 0} // 残高不足で無効化
-          >
-            支払いを確定する
-          </button>
-          {remainingBalance < 0 && (
-            <p className="text-red-400 text-sm">残高が不足しています。</p>
-          )}
-          <button
-            onClick={handleCancel}
-            className="bg-gray-600 text-white px-8 py-3 rounded-full text-lg font-semibold shadow-md hover:bg-gray-700 transition-all duration-300 transform active:scale-95"
-          >
-            キャンセル
-          </button>
+      {/* 確認ボタンとキャンセルボタン */}
+      <div className="flex space-x-4">
+        <button
+          onClick={handleConfirmClick}
+          className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-full shadow-lg transition-all duration-300 transform active:scale-95"
+          disabled={isLoading} // 支払い処理中は無効化
+        >
+          支払い確定
+        </button>
+        <button
+          onClick={handleCancelClick}
+          className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-full shadow-lg transition-all duration-300 transform active:scale-95"
+          disabled={isLoading} // 支払い処理中は無効化
+        >
+          キャンセル
+        </button>
+      </div>
+
+      {/* ローディング表示 (isLoadingがtrueの場合に表示) */}
+      {isLoading && (
+        <div className="mt-8">
+          <p className="text-lg text-gray-400">処理中...</p>
         </div>
       )}
+
+      {/* CustomModal は App.js で管理されているため、ここでは直接レンダリングしない */}
+      {/* ただし、この画面の情報を元にApp.jsのモーダルをトリガーするロジックは必要 */}
+      {/* App.jsのsetModalをPaymentConfirmationScreenに渡しているので、
+          PaymentConfirmationScreenがCustomModalを直接表示する代わりに、
+          App.jsのmodalステートを更新して表示を制御します。
+          このコンポーネント自体がモーダルとして使われる場合は、CustomModalは不要です。
+      */}
     </div>
   );
-};
-
-export default PaymentConfirmationScreen;
+}

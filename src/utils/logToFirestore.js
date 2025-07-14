@@ -1,56 +1,54 @@
 // src/utils/logToFirestore.js
 
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { firebaseDb, firebaseAuth } from '../firebase/firebaseConfig'; // Firebaseインスタンスをインポート
+import { firebaseDb } from '../firebase/firebaseConfig'; // 初期化済みのFirestoreインスタンスをインポート
+
+const db = firebaseDb; // Firestoreインスタンスを取得
 
 /**
- * Firestoreにログを書き込む関数。
+ * Firebase Firestoreにログを送信する関数。
+ * このバージョンでは、'error'レベルのログのみを送信します。
  * @param {string} appId - アプリケーションID
- * @param {string} level - ログレベル (e.g., 'log', 'warn', 'error')
- * @param {...any} args - ログメッセージの引数
+ * @param {string} level - ログレベル ('log', 'warn', 'error')
+ * @param {...any} args - コンソールログに渡された引数
  */
 export const logToFirestore = async (appId, level, ...args) => {
-  const db = firebaseDb; // firebaseConfigからdbインスタンスを取得
-  const auth = firebaseAuth; // firebaseConfigからauthインスタンスを取得
+  // 'error'レベルのログのみをFirestoreに送信
+  if (level !== 'error') {
+    return; // 'error'レベル以外のログは送信しない
+  }
 
+  // Firebaseがまだ初期化されていない場合はログを送信しない
   if (!db || !appId) {
-    console.warn("logToFirestore: Firestore instance or appId not available. Log not sent to Firestore.");
+    console.warn('logToFirestore: FirebaseまたはappIdが未初期化のためログを送信できません。');
     return;
   }
 
-  // ログメッセージを整形
-  const message = args.map(arg => {
-    if (typeof arg === 'object' && arg !== null) {
-      try {
-        return JSON.stringify(arg);
-      } catch (e) {
-        return String(arg); // JSON.stringifyが失敗した場合
-      }
-    }
-    return String(arg);
-  }).join(' ');
-
-  const userId = auth.currentUser ? auth.currentUser.uid : 'anonymous';
-  const userEmail = auth.currentUser ? auth.currentUser.email : null;
-  const currentScreen = window.currentAppScreen || 'unknown'; // useAppLoggerで設定されたグローバル変数
-
   try {
-    const logsCollectionRef = collection(db, `artifacts/${appId}/dev_logs`);
-    await addDoc(logsCollectionRef, {
-      level,
-      message,
-      timestamp: serverTimestamp(),
-      userId,
-      userEmail,
-      screen: currentScreen,
-      // 必要に応じて、その他のコンテキスト情報も追加
+    // ログメッセージを整形（オブジェクトも文字列化）
+    const message = args.map(arg => {
+      if (typeof arg === 'object' && arg !== null) {
+        try {
+          return JSON.stringify(arg);
+        } catch (e) {
+          return String(arg); // JSON.stringifyが失敗した場合
+        }
+      }
+      return String(arg);
+    }).join(' ');
+
+    // ログコレクションのパスにappIdを含める
+    await addDoc(collection(db, `artifacts/${appId}/dev_logs`), {
+      timestamp: serverTimestamp(), // サーバー側の正確なタイムスタンプ
+      level: level, // 'log', 'warn', 'error'
+      message: message,
       userAgent: navigator.userAgent,
-      url: window.location.href,
+      // 必要に応じて追加情報 (App.jsからグローバル変数として設定)
+      userId: window.firebaseAuth?.currentUser?.uid || 'anonymous',
+      currentScreen: window.currentAppScreen || 'unknown',
     });
-    // console.log(`logToFirestore: Logged '${level}' to Firestore: ${message}`); // ログの無限ループを防ぐためコメントアウト
-  } catch (error) {
-    console.error("logToFirestore: Firestoreへのログ送信失敗:", error);
-    // ここで無限ループを防ぐため、元のコンソールエラーは使わない
-    // originalConsoleError.current("logToFirestore: Firestoreへのログ送信失敗:", error);
+  } catch (e) {
+    // Firestoreへのログ送信自体が失敗した場合の警告（無限ループを防ぐため、元のconsole.warnで出力）
+    console.warn('Firestoreへのログ送信失敗:', e);
   }
 };

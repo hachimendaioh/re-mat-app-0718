@@ -13,47 +13,22 @@
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <title>Re-Mat App</title>
 
-    <!-- Google AdSense CMP スクリプト (同意管理プラットフォーム) -->
-    <!-- このスクリプトは、ユーザーの同意を得るためのものです。 -->
-    <script async src="https://fundingchoicesmessages.google.com/i/ca-pub-2446505733093667"
-            data-cmp-metadata="YOUR_CMP_METADATA_STRING"></script>
-    <script>
-      (function(){
-        // 同意が得られた場合にAdSenseスクリプトを読み込む関数
-        function loadAdSenseScript() {
-          var adScript = document.createElement('script');
-          adScript.async = true;
-          adScript.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2446505733093667';
-          adScript.setAttribute('crossorigin', 'anonymous');
-          document.head.appendChild(adScript);
-          console.log("AdSense: adsbygoogle.js script appended to head.");
-        }
+    <!-- ★★★ Google AdSense CMP コードスニペットをここに追加します ★★★ -->
+    <!-- 既存のAdSenseスクリプトとCMPコード。data-cmp-metadataの行は、
+         使用しているCMPによって調整または削除してください。
+         もしGoogleの同意管理ソリューションを使っているなら、
+         data-cmp-metadata="YOUR_CMP_METADATA_STRING" の行は不要な場合が多いです。
+         ここでは構文エラーを避けるためにコメントアウトしています。
+    -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2446505733093667"
+     crossorigin="anonymous"></script>
+    <!-- <script data-cmp-metadata="YOUR_CMP_METADATA_STRING"></script>  <-- この行はCMPに応じて調整または削除 -->
+    <script>(function(){function consent(){var adScript=document.createElement('script');adScript.async=true;adScript.src='https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2446505733093667';adScript.setAttribute('crossorigin','anonymous');document.head.appendChild(adScript);}if(window.__uspapi){window.__uspapi('getTCData',1,function(tcData,success){if(success&&tcData.gdprApplies){if(tcData.purpose.consents['1']){consent();}}else{consent();}});}else{consent();}})();</script>
+    <!-- ★★★ Google AdSense CMP コードスニペットここまで ★★★ -->
 
-        // CMPのAPIが利用可能かチェックし、同意状況に応じてスクリプトを読み込む
-        // 同意が不要な地域や、同意が得られた場合にロード
-        if (window.__uspapi) {
-          window.__uspapi('getTCData', 1, function(tcData, success) {
-            if (success && tcData.gdprApplies) {
-              if (tcData.purpose.consents['1']) { // 例: 目的1（デバイスへの情報の保存およびアクセス）に同意
-                loadAdSenseScript();
-              } else {
-                console.log("AdSense: Consent for purpose 1 not given.");
-              }
-            } else {
-              // GDPRが適用されない、またはAPIが利用できない場合は同意なしでロード
-              loadAdSenseScript();
-            }
-          });
-        } else {
-          // CMP APIがない場合は直接ロード（同意管理が不要な地域向け）
-          loadAdSenseScript();
-        }
-      })();
-    </script>
-   
     <!-- Tailwind CSS CDN (開発用、本番環境ではPostCSSプラグインとしてインストール推奨) -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
+
     <!-- Inter Font の読み込み (Google Fonts) -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
@@ -76,9 +51,11 @@
       To begin the development, run `npm start` or `yarn start`.
       To create a production bundle, use `npm run build` or `yarn build`.
     -->
-    <!-- QRコード読み取りライブラリ jsQR -->
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.1.0/dist/jsQR.min.js"></script>
-    <!-- QRコード生成ライブラリ QRious -->
+    
+    <!-- ★★★ QRコード生成ライブラリ QRious を追加 ★★★ -->
     <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
+    <!-- ★★★ QRiousライブラリの追加ここまで ★★★ -->
+
+    <!-- 余分な </script> タグを削除しました -->
   </body>
 </html>

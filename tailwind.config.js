@@ -1,27 +1,11 @@
-// tailwind.config.js
+/** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./src/**/*.{js,jsx,ts,tsx}", // アプリケーションのファイルパスを指定
+    "./src/**/*.{js,jsx,ts,tsx}", // ★この行を追加または確認★
+    "./public/index.html",         // 必要であれば追加
   ],
   theme: {
-    extend: {
-      transitionProperty: {
-        'height': 'height',
-        'spacing': 'margin, padding',
-        'opacity': 'opacity', // 追加
-        'transform': 'transform', // 追加
-      },
-
-      keyframes: {
-        fadeIn: {
-          '0%': { opacity: 0 },
-          '100%': { opacity: 1 },
-        }
-      },
-      animation: {
-        fadeIn: 'fadeIn 0.5s ease-out forwards',
-      }
-    },
+    extend: {},
   },
   plugins: [],
 }

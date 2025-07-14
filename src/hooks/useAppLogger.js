@@ -1,113 +1,86 @@
 // src/hooks/useAppLogger.js
 
-import { useState, useEffect, useRef, useCallback } from 'react'; // ★useCallback を追加
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { firebaseDb } from '../firebase/firebaseConfig';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { logToFirestore } from '../utils/logToFirestore'; // logToFirestoreをインポート
+
+// Firestoreへの書き込み頻度を制限するためのデバウンス関数
+const debounce = (func, delay) => {
+  let timeout;
+  return function(...args) {
+    const context = this;
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func.apply(context, args), delay);
+  };
+};
 
 /**
- * アプリケーションのログを管理し、Firestoreに送信するカスタムフック。
+ * アプリケーションのコンソールログをオーバーライドし、
+ * 画面表示とFirestoreへのログ送信を管理するカスタムフック。
  * @param {boolean} isFirebaseReady - Firebaseの初期化が完了したか
- * @param {string} appId - FirebaseプロジェクトのアプリケーションID
- * @param {string} screen - 現在の画面名
- * @param {object|null} auth - Firebase Authインスタンス
+ * @param {string} appId - アプリケーションID
+ * @param {string} currentScreen - 現在表示されている画面名
+ * @param {object} auth - Firebase Authインスタンス
  * @param {string|null} userId - 現在のユーザーID
- * @returns {Array<string>} 画面内に表示するエラーログの配列
+ * @returns {Array<string>} onScreenLogs - 画面に表示するログメッセージの配列
  */
-export const useAppLogger = (isFirebaseReady, appId, screen, auth, userId) => {
-  const [onScreenLogs, setOnScreenLogs] = useState([]);
-  const currentScreen = useRef(screen); // 最新の画面名を保持するためのref
+export const useAppLogger = (isFirebaseReady, appId, currentScreen, auth, userId) => {
+  const [onScreenLogs, setOnScreenLogs] = useState([]); // 画面表示用ログステート
+  const originalConsoleLog = useRef(console.log);
+  const originalConsoleWarn = useRef(console.warn);
+  const originalConsoleError = useRef(console.error);
 
-  // 画面名が変更されたときにrefを更新
-  useEffect(() => {
-    currentScreen.current = screen;
-  }, [screen]);
-
-  // Firestoreにログを送信する関数
-  // この関数は、console.error/logのオーバーライドから呼び出される
-  const logToFirestore = useCallback(async (logMessage, logType = 'info') => {
-    // Firebaseが準備できていない、またはユーザーIDがない場合はログを送信しない
-    // （初期化中の大量ログを防ぐため）
-    if (!isFirebaseReady || !userId || !firebaseDb || !appId) {
-      // console.warn("logToFirestore: Firebase not ready or userId/appId missing. Skipping log.", logMessage);
-      return;
-    }
-
-    try {
-      const logsCollectionRef = collection(firebaseDb, `artifacts/${appId}/dev_logs`);
-      
-      // addDoc を使用して、自動生成IDで新しいドキュメントを作成
-      await addDoc(logsCollectionRef, {
-        timestamp: serverTimestamp(),
-        userId: userId,
-        screen: currentScreen.current, // 現在の画面名をログに含める
-        type: logType, // 'info', 'warn', 'error'
-        message: logMessage,
-        // auth.currentUser の情報も追加するとデバッグに役立つが、個人情報に注意
-        // authUid: auth?.currentUser?.uid,
-        // authEmail: auth?.currentUser?.email,
-      });
-
-    } catch (error) {
-      // ここでのエラーはコンソールにのみ出力し、無限ループを防ぐ
-      console.error("logToFirestore: Firestoreへのログ送信失敗:", error);
-    }
-  }, [isFirebaseReady, userId, appId]); // 依存配列に isFirebaseReady, userId, appId を追加
+  // logToFirestore のデバウンスされたバージョンを作成 (500ms ごとにまとめて送信)
+  const debouncedLogToFirestore = useCallback(debounce(logToFirestore, 500), []);
 
   useEffect(() => {
-    // console.log のオーバーライド
-    const originalConsoleLog = console.log;
+    // グローバル変数に現在の画面と認証情報を設定（logToFirestoreからアクセスするため）
+    // これはReactの原則から外れるが、デバッグ目的で許容
+    window.currentAppScreen = currentScreen; 
+    window.firebaseAuth = auth; 
+
+    // console.logをオーバーライド
     console.log = (...args) => {
-      originalConsoleLog(...args); // 元のコンソールログも実行
-
-      const logString = args.map(arg => {
-        if (typeof arg === 'object' && arg !== null) {
-          try {
-            return JSON.stringify(arg);
-          } catch (e) {
-            return `[Circular or complex object: ${e.message}]`; // 循環参照対策
-          }
-        }
-        return String(arg);
-      }).join(' ');
-
-      // 特定のログ（AdSense, QrCodeScanner）はFirestoreに送信しない
-      if (!logString.startsWith('AdSenseAd:') && !logString.startsWith('QrCodeScanner:')) {
-        logToFirestore(logString, 'info');
+      originalConsoleLog.current(...args); // 元のコンソールにも出力
+      // 'log'レベルのメッセージは画面表示用ログには追加しない
+      // Firestoreへの送信もlogToFirestore側でフィルタリングされるため、ここでは呼び出し続ける
+      if (isFirebaseReady && appId && userId) { 
+        debouncedLogToFirestore(appId, 'log', ...args); 
       }
     };
 
-    // console.error のオーバーライド
-    const originalConsoleError = console.error;
+    // console.warnをオーバーライド
+    console.warn = (...args) => {
+      originalConsoleWarn.current(...args);
+      // 'warn'レベルのメッセージは画面表示用ログには追加しない
+      if (isFirebaseReady && appId && userId) {
+        debouncedLogToFirestore(appId, 'warn', ...args);
+      }
+    };
+
+    // console.errorをオーバーライド
     console.error = (...args) => {
-      originalConsoleError(...args); // 元のコンソールエラーも実行
-
-      const errorString = args.map(arg => {
-        if (typeof arg === 'object' && arg !== null) {
-          try {
-            return JSON.stringify(arg);
-          } catch (e) {
-            return `[Circular or complex error object: ${e.message}]`; // 循環参照対策
-          }
-        }
-        return String(arg);
-      }).join(' ');
-      
-      // 画面内ログに追加 (エラーのみ)
+      originalConsoleError.current(...args);
       setOnScreenLogs(prevLogs => {
-        // 最新の5件のみ保持
-        const newLogs = [...prevLogs, `ERROR: ${errorString}`];
-        return newLogs.slice(-5);
+        const newLog = 'ERROR: ' + args.map(arg => {
+          if (typeof arg === 'object' && arg !== null) {
+            try { return JSON.stringify(arg); } catch (e) { return String(e); }
+          }
+          return String(arg);
+        }).join(' ');
+        return [...prevLogs, newLog].slice(-20); // 最新20件を保持
       });
-
-      logToFirestore(errorString, 'error');
+      if (isFirebaseReady && appId && userId) {
+        debouncedLogToFirestore(appId, 'error', ...args);
+      }
     };
 
-    // クリーンアップ関数
+    // クリーンアップ関数で元のconsole関数に戻す
     return () => {
-      console.log = originalConsoleLog; // 元に戻す
-      console.error = originalConsoleError; // 元に戻す
+      console.log = originalConsoleLog.current;
+      console.warn = originalConsoleWarn.current;
+      console.error = originalConsoleError.current;
     };
-  }, [logToFirestore]); // logToFirestore を依存配列に追加
+  }, [isFirebaseReady, appId, currentScreen, auth, userId, debouncedLogToFirestore]);
 
   return onScreenLogs;
 };

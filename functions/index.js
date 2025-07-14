@@ -1,85 +1,74 @@
 // functions/index.js
 
-const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 
-// Firebase Admin SDKを初期化
-// Cloud Functions環境では、サービスアカウントキーを明示的に指定する必要はありません。
-// 環境変数から自動的に認証情報がロードされます。
+const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { setGlobalOptions } = require('firebase-functions/v2');
+const { getFirestore } = require('firebase-admin/firestore');
+
+
 admin.initializeApp();
 
-const db = admin.firestore();
+const db = getFirestore();
 
-/**
- * 送金処理を行うCallable Cloud Function。
- * ユーザーAからユーザーBへ安全に金額を送金し、残高、ポイント、取引履歴、通知を更新します。
- *
- * @param {object} data - クライアントから送信されるデータ
- * @param {string} data.senderId - 送金元ユーザーのUID (context.auth.uidから取得されるため、実際には使用しない)
- * @param {string} data.receiverId - 受取人ユーザーのUID
- * @param {number} data.amount - 送金する金額
- * @param {string} [data.senderName] - 送金元ユーザーの名前 (通知用、オプション)
- * @param {string} [data.receiverName] - 受取人ユーザーの名前 (通知用、オプション)
- * @param {object} context - 認証情報を含むコンテキスト
- * @returns {object} 処理結果を示すオブジェクト
- */
-// Functionsのリージョンを明示的に指定 (例: 東京)
-exports.processPayment = functions.region('us-central1').https.onCall(async (data, context) => {
-    // ★★★ここから追加するデバッグログ★★★
+setGlobalOptions({
+    region: 'us-central1',
+    memory: '256MiB',
+    timeoutSeconds: 60,
+});
+
+
+exports.processPayment = onCall(async (request) => {
     console.log('Cloud Function: processPayment called.');
-    // contextオブジェクト全体をJSON.stringifyすると循環参照エラーになるため、コメントアウト
-    // console.log('Cloud Function: context object:', JSON.stringify(context, null, 2)); 
-    console.log('Cloud Function: context.auth:', context.auth);
-    if (context.auth) {
-        console.log('Cloud Function: context.auth.uid:', context.auth.uid);
-        console.log('Cloud Function: context.auth.token:', context.auth.token); // IDトークンのペイロード (機密情報を含まない)
+    console.log('Cloud Function: request.data:', request.data);
+    console.log('Cloud Function: request.auth:', request.auth);
+    if (request.auth) {
+        console.log('Cloud Function: request.auth.uid:', request.auth.uid);
     } else {
-        console.warn('Cloud Function: context.auth is NULL. User is not authenticated.');
+        console.warn('Cloud Function: request.auth is NULL. User is not authenticated.');
     }
-    // ★★★ここまで追加するデバッグログ★★★
 
-    // 1. 認証チェック
-    // 呼び出し元が認証されていることを確認
-    if (!context.auth) {
-        throw new functions.https.HttpsError(
+    if (!request.auth) {
+        throw new HttpsError(
             'unauthenticated',
             '認証されていません。ログインしてください。'
         );
     }
 
-    const senderId = context.auth.uid; // 呼び出し元のUIDを送金元とする
-    const { receiverId, amount, senderName, receiverName } = data;
+    const senderId = request.auth.uid;
+    const { receiverId, amount, senderName, receiverName } = request.data;
 
-    // 2. 入力値のバリデーション
     if (!receiverId || typeof amount !== 'number' || amount <= 0) {
-        throw new functions.https.HttpsError(
+        throw new HttpsError(
             'invalid-argument',
             '無効な受取人IDまたは送金額です。'
         );
     }
 
-    // 送金元と受取人が同じでないことを確認
     if (senderId === receiverId) {
-        throw new functions.https.HttpsError(
+        throw new HttpsError(
             'invalid-argument',
             '自分自身に送金することはできません。'
         );
     }
 
-    // FirestoreのApp IDを取得 (Reactアプリと同じIDを使用)
-    // ここではハードコードしていますが、環境変数として設定することも可能です
     const appId = 're-mat-mvp'; // ★あなたのFirebaseプロジェクトIDに置き換えてください★
 
     const senderProfileRef = db.doc(`artifacts/${appId}/users/${senderId}/profile/userProfile`);
     const receiverProfileRef = db.doc(`artifacts/${appId}/users/${receiverId}/profile/userProfile`);
 
-    // トランザクションを開始
+    // ★ここから修正: 取引履歴と通知のコレクション参照パスを変更★
+    const senderTransactionsColRef = db.collection(`artifacts/${appId}/users/${senderId}/transactions`);
+    const receiverTransactionsColRef = db.collection(`artifacts/${appId}/users/${receiverId}/transactions`);
+    const senderNotificationsColRef = db.collection(`artifacts/${appId}/users/${senderId}/notifications`);
+    const receiverNotificationsColRef = db.collection(`artifacts/${appId}/users/${receiverId}/notifications`);
+    // ★ここまで修正★
+
     try {
         await db.runTransaction(async (transaction) => {
-            // 送金元のプロフィールを取得
             const senderDoc = await transaction.get(senderProfileRef);
             if (!senderDoc.exists) {
-                throw new functions.https.HttpsError(
+                throw new HttpsError(
                     'not-found',
                     '送金元ユーザーのプロフィールが見つかりません。'
                 );
@@ -90,18 +79,16 @@ exports.processPayment = functions.region('us-central1').https.onCall(async (dat
             const currentSenderPoints = senderData.points || 0;
             const actualSenderName = senderData.name || senderName || '不明なユーザー';
 
-            // 残高チェック
             if (currentSenderBalance < amount) {
-                throw new functions.https.HttpsError(
+                throw new HttpsError(
                     'failed-precondition',
                     '残高が不足しています。'
                 );
             }
 
-            // 受取人のプロフィールを取得
             const receiverDoc = await transaction.get(receiverProfileRef);
             if (!receiverDoc.exists) {
-                throw new functions.https.HttpsError(
+                throw new HttpsError(
                     'not-found',
                     '受取人ユーザーのプロフィールが見つかりません。'
                 );
@@ -115,7 +102,7 @@ exports.processPayment = functions.region('us-central1').https.onCall(async (dat
 
             // 1. 送金元の残高とポイントを更新
             const newSenderBalance = currentSenderBalance - amount;
-            const newSenderPoints = currentSenderPoints + Math.floor(amount * 0.03); // 送金元には3%ポイント付与
+            const newSenderPoints = currentSenderPoints + Math.floor(amount * 0.03);
             transaction.update(senderProfileRef, {
                 balance: newSenderBalance,
                 points: newSenderPoints
@@ -123,39 +110,36 @@ exports.processPayment = functions.region('us-central1').https.onCall(async (dat
 
             // 2. 受取人の残高とポイントを更新
             const newReceiverBalance = currentReceiverBalance + amount;
-            const newReceiverPoints = currentReceiverPoints + Math.floor(amount * 0.005); // 受取人には0.5%ポイント付与
+            const newReceiverPoints = currentReceiverPoints + Math.floor(amount * 0.005);
             transaction.update(receiverProfileRef, {
                 balance: newReceiverBalance,
                 points: newReceiverPoints
             });
 
             // 3. 送金元の取引履歴を追加
-            const senderTransactionsColRef = senderProfileRef.collection('transactions');
-            transaction.set(senderTransactionsColRef.doc(), {
-                store: actualReceiverName, // 受取人名
-                amount: -amount, // 支払いなのでマイナス
+            transaction.set(senderTransactionsColRef.doc(), { // ★修正後の参照を使用★
+                store: actualReceiverName,
+                amount: -amount,
                 date: admin.firestore.FieldValue.serverTimestamp(),
                 type: 'payment',
                 notification_type: 'info',
                 timestamp: admin.firestore.FieldValue.serverTimestamp(),
-                receiverId: receiverId // 受取人IDも記録
+                receiverId: receiverId
             });
 
             // 4. 受取人の取引履歴を追加
-            const receiverTransactionsColRef = receiverProfileRef.collection('transactions');
-            transaction.set(receiverTransactionsColRef.doc(), {
-                store: actualSenderName, // 送金元ユーザーの名前
-                amount: amount, // 受取なのでプラス
+            transaction.set(receiverTransactionsColRef.doc(), { // ★修正後の参照を使用★
+                store: actualSenderName,
+                amount: amount,
                 date: admin.firestore.FieldValue.serverTimestamp(),
                 type: 'receive',
                 notification_type: 'info',
                 timestamp: admin.firestore.FieldValue.serverTimestamp(),
-                senderId: senderId // 送金元IDも記録
+                senderId: senderId
             });
 
             // 5. 送金元への通知を追加
-            const senderNotificationsColRef = senderProfileRef.collection('notifications');
-            transaction.set(senderNotificationsColRef.doc(), {
+            transaction.set(senderNotificationsColRef.doc(), { // ★修正後の参照を使用★
                 text: `¥${amount.toLocaleString()}を${actualReceiverName}に支払いました。現在の残高：¥${newSenderBalance.toLocaleString()}`,
                 read: false,
                 type: 'info',
@@ -163,8 +147,7 @@ exports.processPayment = functions.region('us-central1').https.onCall(async (dat
             });
 
             // 6. 受取人への通知を追加
-            const receiverNotificationsColRef = receiverProfileRef.collection('notifications');
-            transaction.set(receiverNotificationsColRef.doc(), {
+            transaction.set(receiverNotificationsColRef.doc(), { // ★修正後の参照を使用★
                 text: `¥${amount.toLocaleString()}を${actualSenderName}から受け取りました。現在の残高：¥${newReceiverBalance.toLocaleString()}`,
                 read: false,
                 type: 'info',
@@ -175,13 +158,11 @@ exports.processPayment = functions.region('us-central1').https.onCall(async (dat
         return { success: true, message: '送金が完了しました。' };
 
     } catch (error) {
-        // HttpsErrorはそのままスロー
-        if (error instanceof functions.https.HttpsError) {
+        if (error instanceof HttpsError) {
             throw error;
         }
-        // その他のエラーはInternalエラーとしてスロー
         console.error("Payment transaction failed:", error);
-        throw new functions.https.HttpsError(
+        throw new HttpsError(
             'internal',
             '送金処理中に予期せぬエラーが発生しました。',
             error.message

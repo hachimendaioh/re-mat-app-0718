@@ -1,7 +1,7 @@
 // src/components/layout/HomeDashboard.js
 
-import React, { useState } from 'react';
-// import AdSenseAd from '../common/AdSenseAd'; // ★この行を削除します★
+import React, { useState } from 'react'; // useState をインポート
+import AdSenseAd from '../common/AdSenseAd'; // AdSenseAdコンポーネントをインポート
 import { scanIcon, chargeIcon, pointsIcon, historyIcon, walletIcon, payIcon } from '../../constants/icons'; // アイコンをインポート
 
 /**
@@ -17,33 +17,44 @@ import { scanIcon, chargeIcon, pointsIcon, historyIcon, walletIcon, payIcon } fr
  * @param {boolean} props.isLoading - アプリがロード中かどうか
  */
 const HomeDashboard = ({ auth, isStoreMode, userId, userName, balance, points, setScreen, isLoading }) => {
-  // const [isAdLoaded, setIsAdLoaded] = useState(false); // ★この行も不要になりますので削除します★
+  const [isAdLoaded, setIsAdLoaded] = useState(false); // AdSense広告がロードされたかどうかの状態
 
   return (
     <>
-      {/* Top Ad Space */}
+      {/* トップヘッダーのプレースホルダー (App.jsから移動した部分) */}
+      {/* この部分はApp.jsのHome画面のレンダリングロジックの直後、DebugInfoの上に配置されます */}
+      {/* 通常、この部分はApp.jsまたは別のレイアウトコンポーネントで管理されますが、
+          HomeDashboardがトップレベルのコンテンツとして機能する場合、ここに含めることも可能です。
+          現在の提供されたHomeDashboard.jsにはコメントアウトされたヘッダーが含まれていましたが、
+          今回は広告配置に焦点を当てるため、その部分は含めず、代わりに広告を配置します。
+      */}
+
+      {/* トップのプロモーションバナー (既存のコードから移動) */}
+      {/* このバナーはAdSense広告とは別の、アプリ独自のプロモーション表示として残します。 */}
       <div className="w-full h-16 bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center text-white text-sm font-bold shadow-md relative overflow-hidden rounded-xl mb-6">
         <div className="absolute inset-0 bg-pattern-dots opacity-20"></div>
         <span className="relative z-10">お得なキャンペーン実施中！今すぐチェック！</span>
-        <button className="absolute right-2 top-1/2 -translate-y-1/2 text-white text-xs px-2 py-1 rounded-full bg-black bg-opacity=30 hover:bg-opacity-50 transition-colors">
+        <button className="absolute right-2 top-1/2 -translate-y-1/2 text-white text-xs px-2 py-1 rounded-full bg-black bg-opacity-30 hover:bg-opacity-50 transition-colors">
           閉じる
         </button>
       </div>
 
-      {/* AdSense広告の表示 (AdSenseAdコンポーネントを使用) はApp.jsに移動しました。
-          ここでは関連するコードを削除します。
+      {/* AdSense広告の表示 (AdSenseAdコンポーネントを使用) */}
+      {/* 広告がロードされた場合にのみコンテナを表示し、間延びを防ぐ */}
+      {/* isLoadingがfalseの場合（ロード完了後）にのみ広告コンテナを表示 */}
       {!isLoading && (
-        <div className={`w-full text-center my-6 ${isAdLoaded ? '' : 'h-0 overflow-hidden'}`}>
+        <div className={`w-full text-center my-6 ${isAdLoaded ? '' : 'h-0 overflow-hidden'}`}> {/* ロードされるまで高さを0にし、オーバーフローを隠す */}
           <AdSenseAd
-            slot="YOUR_AD_UNIT_SLOT_ID"
-            style={{ display: 'block', height: '100px', width: '320px', margin: 'auto' }}
-            onAdLoad={() => setIsAdLoaded(true)}
+            slot="6417629682" // 提供された広告スロットIDを指定
+            style={{ display: 'block' }} // 提供されたスタイルを適用 (display:blockは必須)
+            format="auto" // 自動フォーマットでレスポンシブに対応
+            // data-full-width-responsive="true" はAdSenseAdコンポーネント内部で処理されるため、ここでは不要
+            onAdLoad={() => setIsAdLoaded(true)} // 広告がロードされたら状態を更新
           />
         </div>
       )}
-      */}
 
-      {/* Store/User Dashboard */}
+      {/* 店舗/ユーザーダッシュボード (既存のコードから移動) */}
       <div className="mx-4 bg-white rounded-xl shadow-lg p-5 my-6 text-left text-black animate-slide-in-right">
         <h3 className="text-xl font-bold mb-4 text-gray-800">
           {auth?.currentUser?.isAnonymous ? 'ゲストユーザー' : (isStoreMode ? '店舗ダッシュボード' : 'ユーザーダッシュボード')}
@@ -92,7 +103,7 @@ const HomeDashboard = ({ auth, isStoreMode, userId, userName, balance, points, s
         )}
       </div>
 
-      {/* Other Home Screen Elements */}
+      {/* その他のホーム画面要素 (既存のコードから移動) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mx-4 mb-6">
         {/* 視覚的機能制限の適用 */}
         {[

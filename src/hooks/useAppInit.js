@@ -1,11 +1,36 @@
 // src/hooks/useAppInit.js
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { onAuthStateChanged, signInAnonymously, signInWithCustomToken } from 'firebase/auth';
 import { doc, setDoc, collection, onSnapshot } from 'firebase/firestore';
-// ★★★ここを修正★★★
-import { firebaseDb, firebaseAuth, firebaseApp } from '../firebase/firebaseConfig'; // Firebaseインスタンスをインポート
+import { firebaseDb, firebaseAuth, firebaseApp as appInstance } from '../firebase/firebaseConfig'; // firebaseApp を appInstance としてインポート
 
+/**
+ * アプリケーションの初期化、Firebase認証、および初期データロードを管理するカスタムフック。
+ * @returns {{
+ * userId: string|null,
+ * isFirebaseReady: boolean,
+ * isInitialDataLoaded: boolean,
+ * splashScreenTimerCompleted: boolean,
+ * balance: number,
+ * points: number,
+ * userName: string,
+ * profileImage: string|null,
+ * history: Array<object>,\
+ * notifications: Array<object>,\
+ * auth: object,\
+ * db: object,\
+ * appId: string,\
+ * firebaseApp: object, // ★追加: firebaseAppインスタンスも返す★
+ * setUserId: (value: string|null) => void,\
+ * setBalance: (value: number) => void,\
+ * setPoints: (value: number) => void,\
+ * setUserName: (value: string) => void,\
+ * setProfileImage: (value: string|null) => void,\
+ * setHistory: (value: Array<object>) => void,\
+ * setNotifications: (value: Array<object>) => void
+ * }} アプリケーションの初期状態とFirebaseインスタンス、および状態更新関数
+ */
 export const useAppInit = () => {
   const [userId, setUserId] = useState(null);
   const [isFirebaseReady, setIsFirebaseReady] = useState(false);
@@ -21,81 +46,57 @@ export const useAppInit = () => {
 
   const db = firebaseDb;
   const auth = firebaseAuth;
-  const app = firebaseApp; // app インスタンスを取得
-  const appId = 're-mat-mvp';
-
-  // Firestoreリスナーのunsubscribe関数を保持する参照
-  const unsubscribeRefs = useRef({});
+  const appId = typeof __app_id !== 'undefined' ? __app_id : 're-mat-mvp';
 
   // Firebase初期化と認証のuseEffect
   useEffect(() => {
-    if (!auth || !db || !app) { // app もチェックに追加
+    if (!auth || !db) {
         console.log("useAppInit: Waiting for Firebase instances to be ready...");
         return;
     }
 
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-      // ユーザーIDが変更された場合、古いFirestoreリスナーを解除
-      if (user?.uid !== userId) {
-        console.log("useAppInit: User ID changed or user logged out. Unsubscribing old Firestore listeners.");
-        Object.values(unsubscribeRefs.current).forEach(unsub => unsub());
-        unsubscribeRefs.current = {}; // リスナー参照をクリア
-        setIsInitialDataLoaded(false); // データがリセットされるため、再度ロードが必要
-        
-        // 状態をリセット
-        setBalance(0);
-        setPoints(0);
-        setUserName('');
-        setProfileImage(null);
-        setHistory([]);
-        setNotifications([]);
-      }
-
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        // ユーザーが既にログインしている場合（匿名、または認証済み）
         setUserId(user.uid);
         console.log("useAppInit: Auth state changed: Logged in as", user.uid, "Email Verified:", user.emailVerified);
       } else {
+        // ユーザーがログインしていない場合、カスタムトークンまたは匿名でログインを試みる
         console.log("useAppInit: Auth state changed: No user logged in. Attempting anonymous or custom token login.");
+
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          // Canvas環境でカスタムトークンが提供されている場合、まずカスタムトークンでログインを試みる
+          try {
+            await signInWithCustomToken(auth, __initial_auth_token);
+            setUserId(auth.currentUser.uid);
+            console.log("useAppInit: Signed in with custom token:", auth.currentUser.uid);
+          } catch (tokenError) {
+            console.warn("useAppInit: Custom token login failed, falling back to anonymous:", tokenError);
+            // カスタムトークンログインが失敗した場合、匿名ログインにフォールバック
+            try {
+              await signInAnonymously(auth);
+              setUserId(auth.currentUser.uid);
+              console.log("useAppInit: Signed in anonymously (fallback from custom token):", auth.currentUser.uid);
+            } catch (anonError) {
+              console.error("useAppInit: Final fallback to anonymous failed:", anonError);
+            }
+          }
+        } else {
+          // カスタムトークンが提供されていない場合、直接匿名ログインを試みる
           try {
             await signInAnonymously(auth);
             setUserId(auth.currentUser.uid);
-            console.log("useAppInit: Signed in anonymously (Canvas fallback):", auth.currentUser.uid);
-            
-            try {
-              await auth.signInWithCustomToken(__initial_auth_token);
-              setUserId(auth.currentUser.uid);
-              console.log("useAppInit: Signed in with custom token:", auth.currentUser.uid);
-            } catch (tokenError) {
-              console.warn("useAppInit: Custom token login failed, remaining anonymous or trying default anonymous:", tokenError);
-              if (!auth.currentUser || auth.currentUser.isAnonymous === false) {
-                 await signInAnonymously(auth);
-                 setUserId(auth.currentUser.uid);
-                 console.log("useAppInit: Signed in anonymously (post-token fallback):", auth.currentUser.uid);
-              }
-            }
+            console.log("useAppInit: Signed in anonymously (default):", auth.currentUser.uid);
           } catch (error) {
-            console.error("useAppInit: Firebase initialization error (initial anonymous or custom token failed):", error);
-            await signInAnonymously(auth);
-            setUserId(auth.currentUser.uid);
-            console.log("useAppInit: Signed in anonymously (final fallback):", auth.currentUser.uid);
+            console.error("useAppInit: Anonymous sign-in failed:", error);
           }
-        } else {
-          await signInAnonymously(auth);
-          setUserId(auth.currentUser.uid);
-          console.log("useAppInit: Signed in anonymously (default):", auth.currentUser.uid);
         }
       }
-      setIsFirebaseReady(true);
+      setIsFirebaseReady(true); // Firebaseインスタンスが利用可能になったことを示す
     });
 
-    return () => {
-      unsubscribeAuth();
-      // コンポーネントアンマウント時にすべてのリスナーを解除
-      Object.values(unsubscribeRefs.current).forEach(unsub => unsub());
-      console.log("useAppInit: All Firestore listeners unsubscribed on component unmount.");
-    };
-  }, [auth, db, app, userId]); // app も依存配列に追加
+    return () => unsubscribe();
+  }, [auth, db]); // authとdbを依存配列に含める
 
   // 初期データ読み込みのuseEffect
   useEffect(() => {
@@ -118,7 +119,7 @@ export const useAppInit = () => {
     
     // プロフィールデータ
     const profileDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'userProfile');
-    unsubscribeRefs.current.profile = onSnapshot(profileDocRef, (docSnap) => {
+    const unsubscribeProfile = onSnapshot(profileDocRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setBalance(data.balance || 0);
@@ -148,7 +149,7 @@ export const useAppInit = () => {
 
     // 取引履歴データ
     const transactionsColRef = collection(db, `artifacts/${appId}/users/${userId}/transactions`);
-    unsubscribeRefs.current.history = onSnapshot(transactionsColRef, (snapshot) => {
+    const unsubscribeHistory = onSnapshot(transactionsColRef, (snapshot) => {
       const fetchedHistory = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
@@ -170,7 +171,7 @@ export const useAppInit = () => {
 
     // 通知データ
     const notificationsColRef = collection(db, `artifacts/${appId}/users/${userId}/notifications`);
-    unsubscribeRefs.current.notifications = onSnapshot(notificationsColRef, (snapshot) => {
+    const unsubscribeNotifications = onSnapshot(notificationsColRef, (snapshot) => {
       const fetchedNotifications = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -190,14 +191,14 @@ export const useAppInit = () => {
     });
 
     return () => {
-      // userIdの変更でuseEffectが再実行される前に、以前のリスナーを解除
-      console.log("useAppInit: Unsubscribing Firestore listeners due to userId change or unmount.");
-      Object.values(unsubscribeRefs.current).forEach(unsub => unsub());
-      unsubscribeRefs.current = {}; // リスナー参照をクリア
+      unsubscribeProfile();
+      unsubscribeHistory();
+      unsubscribeNotifications();
+      console.log("useAppInit: Firestore listeners unsubscribed.");
     };
-  }, [db, userId, isFirebaseReady, appId, app]); // app を依存配列に追加
+  }, [db, userId, isFirebaseReady, appId]);
 
-  // スプラッシュスクリーンの最低表示時間確保のuseEffect
+  // スプラッシュスクリーンの最低表示時間確保のuseEffect (useAppInit内に移動)
   useEffect(() => {
     const timer = setTimeout(() => {
       setSplashScreenTimerCompleted(true);
@@ -208,6 +209,7 @@ export const useAppInit = () => {
 
   return {
     userId,
+    setUserId, // setUserIdも返す
     isFirebaseReady,
     isInitialDataLoaded,
     splashScreenTimerCompleted,
@@ -217,16 +219,15 @@ export const useAppInit = () => {
     profileImage,
     history,
     notifications,
-    auth,
-    db,
-    app,
-    appId,
+    auth, // Firebase Authインスタンスも返す
+    db,   // Firebase Firestoreインスタンスも返す
+    appId, // アプリIDも返す
+    firebaseApp: appInstance, // ★ここを追加/修正: firebaseAppインスタンスを返す★
     setBalance,
     setPoints,
     setUserName,
     setProfileImage,
     setHistory,
-    setNotifications,
-    setUserId
+    setNotifications
   };
 };

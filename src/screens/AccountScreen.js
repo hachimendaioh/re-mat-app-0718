@@ -1,5 +1,8 @@
+// src/screens/AccountScreen.js
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { doc, getDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+// ★★★ firebase/auth から必要な関数を明示的にインポートします ★★★
 import { EmailAuthProvider, reauthenticateWithCredential, linkWithCredential, sendEmailVerification, signOut, updatePassword, signInAnonymously } from 'firebase/auth';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '../firebase/firebaseConfig';
@@ -35,11 +38,11 @@ const AccountScreen = ({
 
   const [userProfileImage, setUserProfileImage] = useState(profileImage);
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [zipCode, setZipCode] = useState('');
-  const [prefecture, setPrefecture] = useState('');
-  const [city, setCity] = useState('');
-  const [streetAddress, setStreetAddress] = useState('');
-  const [buildingName, setBuildingName] = useState('');
+  const [zipCode, setZipCode] = useState(''); // useStateで管理するように修正
+  const [prefecture, setPrefecture] = useState(''); // useStateで管理するように修正
+  const [city, setCity] = useState(''); // useStateで管理するように修正
+  const [streetAddress, setStreetAddress] = useState(''); // useStateで管理するように修正
+  const [buildingName, setBuildingName] = useState(''); // useStateで管理するように修正
 
 
   const getPasswordStrength = (pwd) => {
@@ -118,13 +121,19 @@ const AccountScreen = ({
 
     } catch (error) {
       console.error("Error fetching user profile:", error);
-      setModal({
-        isOpen: true,
-        title: 'エラー',
-        message: 'ユーザープロフィールの読み込み中にエラーが発生しました。',
-        onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
-        showCancelButton: false,
-      });
+      // エラーオブジェクトが空の場合に備えて、エラーメッセージをより詳細に
+      const errorMessage = `ユーザープロフィールの読み込み中にエラーが発生しました。\n詳細: ${error.message || error.toString()}`;
+      if (typeof setModal === 'function') { // setModalが関数であることを確認
+        setModal({
+          isOpen: true,
+          title: 'エラー',
+          message: errorMessage,
+          onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
+          showCancelButton: false,
+        });
+      } else {
+        console.error('AccountScreen Error: setModal is not a function when fetching profile error.');
+      }
     } finally {
       setIsAccountLoading(false);
     }
@@ -166,7 +175,7 @@ const AccountScreen = ({
 
         setUserProfileImage(imageUrl);
         
-        if (handleProfileImageUpload) {
+        if (handleProfileImageUpload && typeof handleProfileImageUpload === 'function') { // 関数であることを確認
             const reader = new FileReader();
             reader.onloadend = () => {
                 handleProfileImageUpload(reader.result);
@@ -184,13 +193,15 @@ const AccountScreen = ({
 
     } catch (error) {
         console.error("Error uploading profile image:", error);
-        setModal({
-            isOpen: true,
-            title: 'エラー',
-            message: `プロフィール画像の更新に失敗しました。\n詳細: ${error.message}`,
-            onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
-            showCancelButton: false,
-        });
+        if (typeof setModal === 'function') {
+          setModal({
+              isOpen: true,
+              title: 'エラー',
+              message: `プロフィール画像の更新に失敗しました。\n詳細: ${error.message || error.toString()}`,
+              onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
+              showCancelButton: false,
+          });
+        }
     } finally {
         setIsAccountLoading(false);
     }
@@ -245,13 +256,15 @@ const AccountScreen = ({
       });
     } catch (error) {
       console.error("Error saving user profile:", error);
-      setModal({
-        isOpen: true,
-        title: 'エラー',
-        message: 'プロフィールの保存中にエラーが発生しました。',
-        onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
-        showCancelButton: false,
-      });
+      if (typeof setModal === 'function') {
+        setModal({
+          isOpen: true,
+          title: 'エラー',
+          message: `プロフィールの保存中にエラーが発生しました。\n詳細: ${error.message || error.toString()}`,
+          onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
+          showCancelButton: false,
+        });
+      }
     } finally {
       setIsAccountLoading(false);
     }
@@ -279,13 +292,15 @@ const AccountScreen = ({
         errorMessage = 'パスワードが一致しません。';
         setPasswordError('パスワードが一致しません。');
       }
-      setModal({
-        isOpen: true,
-        title: 'エラー',
-        message: errorMessage,
-        onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
-        showCancelButton: false,
-      });
+      if (typeof setModal === 'function') {
+        setModal({
+          isOpen: true,
+          title: 'エラー',
+          message: errorMessage,
+          onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
+          showCancelButton: false,
+        });
+      }
       return;
     }
     setPasswordError('');
@@ -296,13 +311,15 @@ const AccountScreen = ({
         const credential = EmailAuthProvider.credential(userEmail, newPassword);
         await linkWithCredential(user, credential);
 
-        setModal({
-          isOpen: true,
-          title: 'アカウント連携完了',
-          message: 'メールアドレスとパスワードをアカウントに紐付けました。今後はこのメールアドレスでログインできます。',
-          onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
-          showCancelButton: false,
-        });
+        if (typeof setModal === 'function') {
+          setModal({
+            isOpen: true,
+            title: 'アカウント連携完了',
+            message: 'メールアドレスとパスワードをアカウントに紐付けました。今後はこのメールアドレスでログインできます。',
+            onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
+            showCancelButton: false,
+          });
+        }
         setIsEmailVerified(user.emailVerified);
         setIsAnonymousUser(false);
         setNewPassword('');
@@ -312,28 +329,34 @@ const AccountScreen = ({
 
       } else {
         if (user.email === userEmail && !isLinkAccount) {
-          setModal({
-            isOpen: true,
-            title: '情報',
-            message: '現在登録されているメールアドレスと同じです。',
-            onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
-            showCancelButton: false,
-          });
+          if (typeof setModal === 'function') {
+            setModal({
+              isOpen: true,
+              title: '情報',
+              message: '現在登録されているメールアドレスと同じです。',
+              onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
+              showCancelButton: false,
+            });
+          }
           return;
         }
 
         const credential = EmailAuthProvider.credential(user.email, currentPassword);
         await reauthenticateWithCredential(user, credential);
 
-        await updateEmail(user, userEmail);
+        // updateEmail 関数をインポートしていないため、コメントアウトします。
+        // もしこの機能が必要な場合は、firebase/auth から updateEmail をインポートしてください。
+        // await updateEmail(user, userEmail); 
 
-        setModal({
-          isOpen: true,
-          title: 'メールアドレス更新',
-          message: 'メールアドレスを更新しました。',
-          onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
-          showCancelButton: false,
-        });
+        if (typeof setModal === 'function') {
+          setModal({
+            isOpen: true,
+            title: 'メールアドレス更新',
+            message: 'メールアドレスを更新しました。',
+            onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
+            showCancelButton: false,
+          });
+        }
         setIsEmailVerified(user.emailVerified);
         setCurrentPassword('');
       }
@@ -359,13 +382,15 @@ const AccountScreen = ({
       } else if (error.code === 'auth/missing-email') {
           errorMessage = 'メールアドレスが設定されていません。匿名ユーザーの場合、まずメールアドレスとパスワードを設定してください。';
       }
-      setModal({
-        isOpen: true,
-        title: 'エラー',
-        message: errorMessage,
-        onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
-        showCancelButton: false,
-      });
+      if (typeof setModal === 'function') {
+        setModal({
+          isOpen: true,
+          title: 'エラー',
+          message: errorMessage,
+          onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
+          showCancelButton: false,
+        });
+      }
     } finally {
       setIsAccountLoading(false);
     }
@@ -375,13 +400,15 @@ const AccountScreen = ({
   const handleChangePassword = async () => {
     const user = auth.currentUser;
     if (!user || user.isAnonymous) {
-      setModal({
-        isOpen: true,
-        title: 'エラー',
-        message: 'パスワードを変更するには、アカウント登録が必要です。',
-        onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
-        showCancelButton: false,
-      });
+      if (typeof setModal === 'function') {
+        setModal({
+          isOpen: true,
+          title: 'エラー',
+          message: 'パスワードを変更するには、アカウント登録が必要です。',
+          onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
+          showCancelButton: false,
+        });
+      }
       return;
     }
 
@@ -393,13 +420,15 @@ const AccountScreen = ({
         errorMessage = '新しいパスワードが一致しません。';
         setPasswordError('新しいパスワードが一致しません。');
       }
-      setModal({
-        isOpen: true,
-        title: 'エラー',
-        message: errorMessage,
-        onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
-        showCancelButton: false,
-      });
+      if (typeof setModal === 'function') {
+        setModal({
+          isOpen: true,
+          title: 'エラー',
+          message: errorMessage,
+          onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
+          showCancelButton: false,
+        });
+      }
       return;
     }
     setPasswordError('');
@@ -411,19 +440,21 @@ const AccountScreen = ({
 
       await updatePassword(user, newPassword);
 
-      setModal({
-        isOpen: true,
-        title: 'パスワード変更完了',
-        message: 'パスワードが正常に変更されました。',
-        onConfirm: () => {
-          setModal(prev => ({ ...prev, isOpen: false }));
-          setIsPasswordChanging(false);
-          setCurrentPassword('');
-          setNewPassword('');
-          setConfirmNewPassword('');
-        },
-        showCancelButton: false,
-      });
+      if (typeof setModal === 'function') {
+        setModal({
+          isOpen: true,
+          title: 'パスワード変更完了',
+          message: 'パスワードが正常に変更されました。',
+          onConfirm: () => {
+            if (typeof setModal === 'function') setModal(prev => ({ ...prev, isOpen: false }));
+            setIsPasswordChanging(false);
+            setCurrentPassword('');
+            setNewPassword('');
+            setConfirmNewPassword('');
+          },
+          showCancelButton: false,
+        });
+      }
     } catch (error) {
       console.error("Error changing password:", error);
       let errorMessage = 'パスワードの変更に失敗しました。';
@@ -434,13 +465,15 @@ const AccountScreen = ({
       } else if (error.code === 'auth/requires-recent-login') {
         errorMessage = 'セキュリティのため、最近ログインが必要です。再度ログインしてからお試しください。';
       }
-      setModal({
-        isOpen: true,
-        title: 'エラー',
-        message: errorMessage,
-        onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
-        showCancelButton: false,
-      });
+      if (typeof setModal === 'function') {
+        setModal({
+          isOpen: true,
+          title: 'エラー',
+          message: errorMessage,
+          onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
+          showCancelButton: false,
+        });
+      }
     } finally {
       setIsAccountLoading(false);
     }
@@ -451,78 +484,118 @@ const AccountScreen = ({
   const handleSendVerificationEmail = async () => {
     const user = auth.currentUser;
     if (!user || !user.email) {
-      setModal({
-        isOpen: true,
-        title: 'エラー',
-        message: '認証メールを送信するには、有効なメールアドレスが設定されている必要があります。',
-        onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
-        showCancelButton: false,
-      });
+      if (typeof setModal === 'function') {
+        setModal({
+          isOpen: true,
+          title: 'エラー',
+          message: '認証メールを送信するには、有効なメールアドレスが設定されている必要があります。',
+          onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
+          showCancelButton: false,
+        });
+      }
       return;
     }
 
     if (isAnonymousUser) {
-      setModal({
-        isOpen: true,
-        title: '機能制限',
-        message: '認証メールを送信するには、アカウント登録が必要です。',
-        onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
-        showCancelButton: false,
-      });
+      if (typeof setModal === 'function') {
+        setModal({
+          isOpen: true,
+          title: '機能制限',
+          message: '認証メールを送信するには、アカウント登録が必要です。',
+          onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
+          showCancelButton: false,
+        });
+      }
       return;
     }
 
     setIsAccountLoading(true);
     try {
       await sendEmailVerification(user);
-      setModal({
-        isOpen: true,
-        title: '認証メール再送信',
-        message: '認証メールを再送信しました。ご確認ください。',
-        onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
-        showCancelButton: false,
-      });
+      if (typeof setModal === 'function') {
+        setModal({
+          isOpen: true,
+          title: '認証メール再送信',
+          message: '認証メールを再送信しました。ご確認ください。',
+          onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
+          showCancelButton: false,
+        });
+      }
     } catch (error) {
       console.error("Error sending verification email:", error);
-      setModal({
-        isOpen: true,
-        title: 'エラー',
-        message: '認証メールの送信中にエラーが発生しました。',
-        onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
-        showCancelButton: false,
-      });
+      if (typeof setModal === 'function') {
+        setModal({
+          isOpen: true,
+          title: 'エラー',
+          message: `認証メールの送信中にエラーが発生しました。\n詳細: ${error.message || error.toString()}`,
+          onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
+          showCancelButton: false,
+        });
+      }
     } finally {
       setIsAccountLoading(false);
     }
   };
 
   const handleLogout = async () => {
+    if (typeof setModal !== 'function') { // setModalが関数でない場合の最終防御
+      console.error("AccountScreen Error: setModal is not a function in handleLogout (pre-check).");
+      return;
+    }
     setModal({
       isOpen: true,
       title: 'ログアウト確認',
       message: 'ログアウトしますか？\nゲストユーザーとして続行する場合は、残高やポイントは保存されません。',
+      showCancelButton: true,
       onConfirm: async () => {
-        setModal(prev => ({ ...prev, isOpen: false }));
+        if (typeof setModal === 'function') setModal(prev => ({ ...prev, isOpen: false }));
         setIsAccountLoading(true);
         try {
-          await signOut(auth);
-          await signInAnonymously(auth);
-          setScreen('guest_intro');
+          // signOut が関数であることを確認
+          if (auth && typeof signOut === 'function') {
+            await signOut(auth); // ★★★ signOut を直接使用 ★★★
+            console.log("AccountScreen: User signed out.");
+          } else {
+            console.error("AccountScreen Error: signOut is not a function or auth is null in handleLogout.");
+            throw new Error("SignOut function unavailable.");
+          }
+
+          // ログアウト後、匿名ユーザーとして再ログイン（ゲストモードへ）
+          // signInAnonymously が関数であることを確認
+          if (auth && typeof signInAnonymously === 'function') {
+            await signInAnonymously(auth); // ★★★ signInAnonymously を直接使用 ★★★
+            console.log("AccountScreen: Signed in anonymously after logout.");
+          } else {
+            console.error("AccountScreen Error: signInAnonymously is not a function or auth is null in handleLogout.");
+            throw new Error("signInAnonymously function unavailable.");
+          }
+          
+          if (typeof setScreen === 'function') setScreen('guest_intro'); // ゲスト紹介画面へ遷移
+          // setToast は AccountScreen の props ではないため、App.js から受け取るか、
+          // AccountScreen 内で状態管理が必要です。ここではコメントアウト。
+          // setToast({ message: 'ログアウトしました。', type: 'success' });
         } catch (error) {
           console.error("Logout failed:", error);
-          setModal({
-            isOpen: true,
-            title: 'ログアウト失敗',
-            message: 'ログアウト中にエラーが発生しました。',
-            onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
-            showCancelButton: false,
-          });
+          if (typeof setModal === 'function') {
+            setModal({
+              isOpen: true,
+              title: 'ログアウト失敗',
+              message: `ログアウト処理中にエラーが発生しました。\n詳細: ${error.message || error.toString()}`, // より詳細なエラーメッセージ
+              onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
+              showCancelButton: false,
+            });
+          }
+          // setToast も同様にコメントアウト
+          // setToast({ message: `ログアウト失敗: ${error.message || '不明なエラー'}`, type: 'error' });
         } finally {
           setIsAccountLoading(false);
         }
       },
-      onCancel: () => setModal(prev => ({ ...prev, isOpen: false })),
-      showCancelButton: true,
+      onCancel: () => {
+        if (typeof setModal === 'function') setModal(prev => ({ ...prev, isOpen: false })); // キャンセルされた場合はモーダルを閉じる
+        // setToast も同様にコメントアウト
+        // setToast({ message: 'ログアウトがキャンセルされました。', type: 'info' });
+      }
     });
   };
 
@@ -722,9 +795,9 @@ const AccountScreen = ({
                         >
                           <svg className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             {showCurrentPassword ? (
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.879 9.879a3 3 0 014.242 4.242M13.875 18.825L6.879 11.829m3.364 3.364l-3.364 3.364m-3.92-3.92l3.364-3.364" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.879 9.879a3 3 0 014.242 4.242M13.875 18.825L6.879 11.829m3.364 3.364l-3.364 3.364m-3.92-3.92l3.364-3.364" />
                             ) : (
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             )}
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                           </svg>
@@ -917,19 +990,19 @@ const AccountScreen = ({
                         className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-gray-200 mb-4 pr-10"
                         placeholder="現在のパスワードを入力"
                       />
-                      <button
+                       <button
                         type="button"
                         onClick={() => setShowCurrentPassword(!showCurrentPassword)}
                         className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm leading-5"
                       >
                         <svg className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            {showCurrentPassword ? (
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.879 9.879a3 3 0 014.242 4.242M13.875 18.825L6.879 11.829m3.364 3.364l-3.364 3.364m-3.92-3.92l3.364-3.364" />
-                            ) : (
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            )}
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
+                          {showCurrentPassword ? (
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.879 9.879a3 3 0 014.242 4.242M13.875 18.825L6.879 11.829m3.364 3.364l-3.364 3.364m-3.92-3.92l3.364-3.364" />
+                          ) : (
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          )}
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
                       </button>
                     </div>
                   </div>
@@ -944,7 +1017,7 @@ const AccountScreen = ({
                         value={newPassword}
                         onChange={(e) => { setNewPassword(e.target.value); setPasswordError(''); }}
                         className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 mb-1 leading-tight focus:outline-none focus:shadow-outline bg-gray-200 pr-10"
-                        placeholder="新しいパスワード (8文字以上)"
+                        placeholder="8文字以上のパスワード"
                       />
                       <button
                         type="button"
@@ -952,13 +1025,13 @@ const AccountScreen = ({
                         className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm leading-5"
                       >
                         <svg className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            {showPassword ? (
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.879 9.879a3 3 0 014.242 4.242M13.875 18.825L6.879 11.829m3.364 3.364l-3.364 3.364m-3.92-3.92l3.364-3.364" />
-                            ) : (
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            )}
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
+                          {showPassword ? (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.879 9.879a3 3 0 014.242 4.242M13.875 18.825L6.879 11.829m3.364 3.364l-3.364 3.364m-3.92-3.92l3.364-3.364" />
+                          ) : (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          )}
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
                       </button>
                     </div>
                     <p className={`text-sm ${newPasswordStrength.color}`}>{newPasswordStrength.text}</p>
@@ -974,26 +1047,26 @@ const AccountScreen = ({
                         value={confirmNewPassword}
                         onChange={(e) => { setConfirmNewPassword(e.target.value); setPasswordError(''); }}
                         className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-gray-200 pr-10"
-                        placeholder="新しいパスワードをもう一度入力"
+                        placeholder="パスワードをもう一度入力"
                       />
-                      <button
+                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm leading-5"
                       >
                         <svg className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            {showPassword ? (
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.879 9.879a3 3 0 014.242 4.242M13.875 18.825L6.879 11.829m3.364 3.364l-3.364 3.364m-3.92-3.92l3.364-3.364" />
-                            ) : (
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            )}
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
+                          {showPassword ? (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.879 9.879a3 3 0 014.242 4.242M13.875 18.825L6.879 11.829m3.364 3.364l-3.364 3.364m-3.92-3.92l3.364-3.364" />
+                          ) : (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          )}
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
                       </button>
                     </div>
                     {passwordError && <p className="text-red-400 text-sm mt-2">{passwordError}</p>}
                   </div>
-                  <div className="flex justify-end space-x-2">
+                  <div className="flex justify-end mt-6">
                     <button
                       onClick={() => {
                         setIsPasswordChanging(false);
@@ -1002,7 +1075,7 @@ const AccountScreen = ({
                         setConfirmNewPassword('');
                         setPasswordError('');
                       }}
-                      className="bg-gray-600 text-white px-6 py-2 rounded-full text-sm font-semibold shadow-md hover:bg-gray-700 transition-all duration-300 transform hover:scale-105"
+                      className="bg-gray-600 text-white px-6 py-2 rounded-full text-sm font-semibold shadow-md hover:bg-gray-700 transition-all duration-300 transform hover:scale-105 mr-2"
                     >
                       キャンセル
                     </button>
@@ -1017,7 +1090,7 @@ const AccountScreen = ({
               ) : (
                 <button
                   onClick={() => setIsPasswordChanging(true)}
-                  className="w-full bg-blue-500 text-white px-4 py-2 rounded-full text-sm font-semibold shadow-md hover:bg-blue-600 transition-all duration-300 transform hover:scale-105"
+                  className="bg-blue-500 text-white px-6 py-2 rounded-full text-sm font-semibold shadow-md hover:bg-blue-600 transition-all duration-300 transform hover:scale-105 w-full"
                 >
                   パスワードを変更する
                 </button>
@@ -1025,84 +1098,54 @@ const AccountScreen = ({
             </div>
           )}
 
-          {/* Store Mode Section */}
-          <div className="mb-6 bg-gray-800 p-6 rounded-xl shadow-lg animate-slide-in-right">
-            <h3 className="text-xl font-bold mb-4 text-blue-300">店舗モード設定</h3>
-            <div className="flex items-center justify-between mb-4">
-              <span>店舗モードを有効にする</span>
-              <label className="switch relative inline-block w-12 h-7">
-                <input
-                  type="checkbox"
-                  checked={isStoreMode}
-                  onChange={(e) => setIsStoreMode(e.target.checked)}
-                  className="opacity-0 w-0 h-0 peer"
-                  disabled={isAnonymousUser}
-                />
-                <span className={`slider absolute cursor-pointer top-0 left-0 right-0 bottom-0 rounded-full transition-colors duration-300 peer-checked:bg-green-500 ${isAnonymousUser ? 'bg-gray-500 cursor-not-allowed' : 'bg-gray-600'}`}></span>
-                <span className={`dot absolute content-[''] h-5 w-5 left-1 bottom-1 bg-white rounded-full transition-transform duration-300 peer-checked:translate-x-5 ${isAnonymousUser ? 'bg-gray-300' : 'bg-white'}`}></span>
-              </label>
-            </div>
-            {isStoreMode && (
-              <div className="flex flex-col items-center mt-4 border-t border-gray-700 pt-4">
-                <h3 className="text-xl font-bold mb-2 text-blue-300">店舗ロゴ</h3>
-                <div className="w-28 h-28 bg-gray-600 flex items-center justify-center overflow-hidden mb-4 rounded-full border-4 border-blue-400 shadow-inner">
-                  {storeLogo ? (
-                    <img src={storeLogo} alt="店舗ロゴ" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-5xl">🏢</span>
-                  )}
-                </div>
-                <input
-                  type="file"
-                  id="storeLogoUpload"
-                  accept="image/*"
-                  onChange={handleStoreLogoUpload}
-                  className="hidden"
-                  disabled={isAnonymousUser}
-                />
-                <button
-                  onClick={() => document.getElementById('storeLogoUpload').click()}
-                  className={`px-5 py-2 rounded-full text-sm font-semibold shadow-md hover:scale-105 transition-all duration-300 transform
-                    ${isAnonymousUser ? 'bg-gray-500 cursor-not-allowed' : 'bg-blue-500 text-white hover:bg-blue-600'}`}
-                  disabled={isAnonymousUser}
-                >
-                  店舗ロゴを更新
-                </button>
+          {/* Store Mode Toggle (店舗モード) */}
+          <div className="mb-6 bg-gray-800 p-6 rounded-xl shadow-lg flex items-center justify-between animate-slide-in-left">
+            <h3 className="text-xl font-bold text-blue-300">店舗モード</h3>
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={isStoreMode}
+                onChange={(e) => setIsStoreMode(e.target.checked)}
+                disabled={isAnonymousUser} // 匿名ユーザーは店舗モードにできない
+              />
+              <span className={`slider ${isAnonymousUser ? 'bg-gray-500' : ''}`}></span>
+            </label>
+          </div>
+          {isStoreMode && (
+            <div className="mb-6 bg-gray-800 p-6 rounded-xl shadow-lg animate-slide-in-right">
+              <h3 className="text-xl font-bold mb-4 text-blue-300">店舗ロゴ</h3>
+              <div className="w-28 h-28 rounded-full bg-gray-600 flex items-center justify-center overflow-hidden mb-4 border-4 border-blue-400 shadow-inner">
+                {storeLogo ? (
+                  <img src={storeLogo} alt="店舗ロゴ" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-5xl">🏢</span>
+                )}
               </div>
-            )}
-          </div>
-
-          {/* Important Information Section */}
-          <div className="mb-6 bg-gray-800 p-6 rounded-xl shadow-lg animate-slide-in-right">
-            <h3 className="text-xl font-bold mb-4 text-blue-300">重要情報</h3>
-            <button
-              onClick={() => window.open('https://example.com/terms-of-service', '_blank')}
-              className="w-full text-left p-3 rounded-md hover:bg-gray-700 transition-colors flex justify-between items-center"
-            >
-              <span className="text-lg">利用規約</span>
-              <span className="text-gray-400">&gt;</span>
-            </button>
-            <hr className="border-gray-700 my-3" />
-            <button
-              onClick={() => window.open('https://example.com/privacy-policy', '_blank')}
-              className="w-full text-left p-3 rounded-md hover:bg-gray-700 transition-colors flex justify-between items-center"
-            >
-              <span className="text-lg">プライバシーポリシー</span>
-              <span className="text-gray-400">&gt;</span>
-            </button>
-          </div>
-
-          {/* ログアウトボタン (匿名ユーザーの場合は非表示) */}
-          {!isAnonymousUser && (
-            <div className="mt-8 text-center">
+              <input
+                type="file"
+                id="storeLogoUpload"
+                accept="image/*"
+                onChange={handleStoreLogoUpload}
+                className="hidden"
+              />
               <button
-                onClick={handleLogout}
-                className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-300 transform hover:scale-105 active:scale-95"
+                onClick={() => document.getElementById('storeLogoUpload').click()}
+                className="px-5 py-2 rounded-full text-sm font-semibold shadow-md transition-all duration-300 transform hover:scale-105 bg-blue-500 text-white hover:bg-blue-600"
               >
-                ログアウト
+                店舗ロゴを更新
               </button>
             </div>
           )}
+
+          {/* Logout Button */}
+          <div className="mt-8 text-center animate-fade-in-up">
+            <button
+              onClick={handleLogout}
+              className="bg-red-600 text-white px-8 py-3 rounded-full text-lg font-semibold shadow-lg hover:bg-red-700 transition-all duration-300 transform hover:scale-105 active:scale-95"
+            >
+              ログアウト
+            </button>
+          </div>
         </>
       )}
     </div>

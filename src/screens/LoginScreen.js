@@ -1,122 +1,197 @@
-import React, { useState } from 'react';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+// src/screens/LoginScreen.js
 
-const LoginScreen = ({ setScreen, setModal, auth, setIsLoading, setUserId }) => {
+import React, { useState, useCallback } from 'react';
+import { signInWithEmailAndPassword } from 'firebase/auth'; // Firebase Authのログイン関数をインポート
+import LoadingSpinner from '../components/common/LoadingSpinner'; // ローディングスピナーをインポート
+
+/**
+ * ログイン画面コンポーネント。
+ * ユーザーがメールアドレスとパスワードでログインできるようにします。
+ * @param {object} props - コンポーネントのプロパティ
+ * @param {(screenName: string) => void} props.setScreen - 画面遷移関数
+ * @param {(modalState: object) => void} props.setModal - カスタムモーダル表示関数
+ * @param {object} props.auth - Firebase Authインスタンス
+ * @param {(isLoading: boolean) => void} props.setIsLoading - アプリ全体のローディング状態を更新する関数
+ * @param {(userId: string) => void} props.setUserId - ユーザーIDを更新する関数 (App.jsから直接渡される)
+ */
+const LoginScreen = ({ setScreen, setModal, auth, setIsLoading, setUserId }) => { // onLoginSuccess を setUserId に変更
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false); // ログイン処理中のローディング状態
 
-  const handleLogin = async () => {
-    setIsLoading(true);
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+  const handleLogin = useCallback(async () => {
+    // デバッグ用ログ: 渡されたプロップスの型を確認
+    console.log('LoginScreen Debug: Type of setScreen:', typeof setScreen);
+    console.log('LoginScreen Debug: Type of setModal:', typeof setModal);
+    console.log('LoginScreen Debug: Type of auth:', typeof auth);
+    console.log('LoginScreen Debug: Type of setIsLoading:', typeof setIsLoading);
+    console.log('LoginScreen Debug: Type of setUserId:', typeof setUserId); // onLoginSuccess から setUserId に変更
 
-      // ★ここからデバッグログを追加
-      console.log("LoginScreen Debug: setUserId exists?", !!setUserId);
-      console.log("LoginScreen Debug: Type of setUserId:", typeof setUserId);
-      console.log("LoginScreen Debug: Value of setUserId:", setUserId);
-      // ★ここまでデバッグログを追加
-
-      setUserId(userCredential.user.uid); // この行でエラーが発生している可能性があります
-      setScreen('home');
-    } catch (error) {
-      console.error("Login failed:", error);
-      let errorMessage = 'ログインに失敗しました。';
-      if (error.code === 'auth/invalid-email') {
-        errorMessage = 'メールアドレスの形式が正しくありません。';
-      } else if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-        errorMessage = 'メールアドレスまたはパスワードが間違っています。';
+    if (!email || !password) {
+      if (typeof setModal === 'function') {
+        setModal({
+          isOpen: true,
+          title: '入力エラー',
+          message: 'メールアドレスとパスワードを入力してください。',
+          onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
+          showCancelButton: false,
+        });
+      } else {
+        console.error('LoginScreen Error: setModal is not a function when showing input error.');
       }
-      setModal({
-        isOpen: true,
-        title: 'ログインエラー',
-        message: errorMessage,
-        onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
-        showCancelButton: false,
-      });
-    } finally {
-      setIsLoading(false);
+      return;
     }
-  };
+
+    setLoginLoading(true); // ログイン処理開始
+    if (typeof setIsLoading === 'function') {
+      setIsLoading(true); // アプリ全体のローディングも開始
+    } else {
+      console.error('LoginScreen Error: setIsLoading is not a function when starting login.');
+    }
+
+    try {
+      // Firebase Authenticationでログイン
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // ログイン成功
+      console.log('Login successful:', user.uid);
+      if (typeof setUserId === 'function') { // setUserIdが関数であることを確認
+        setUserId(user.uid); // App.jsのuserIdを更新
+      } else {
+        console.error('LoginScreen Error: setUserId is not a function after successful login.');
+      }
+      if (typeof setScreen === 'function') {
+        setScreen('home'); // ホーム画面へ遷移
+      } else {
+        console.error('LoginScreen Error: setScreen is not a function after successful login.');
+      }
+      if (typeof setModal === 'function') {
+        setModal(prev => ({ ...prev, isOpen: false })); // モーダルを閉じる
+      }
+
+    } catch (error) {
+      // Firebaseから返されたエラーオブジェクト全体をログに出力し、詳細を確認
+      console.error('Login error (full object caught):', error);
+      console.error('Login error (error.name):', error?.name);
+      console.error('Login error (error.code):', error?.code);
+      console.error('Login error (error.message):', error?.message);
+      console.error('Login error (error.toString()):', error?.toString());
+
+
+      let errorMessage = 'ログインに失敗しました。';
+
+      // Firebaseエラーコードに基づいたメッセージを生成
+      const errorCode = error?.code;
+      const errorDetailMessage = error?.message || error?.toString();
+
+      switch (errorCode) {
+        case 'auth/invalid-email':
+          errorMessage = '無効なメールアドレス形式です。';
+          break;
+        case 'auth/user-disabled':
+          errorMessage = 'このアカウントは無効化されています。';
+          break;
+        case 'auth/user-not-found':
+        case 'auth/wrong-password':
+        case 'auth/invalid-credential':
+          errorMessage = 'メールアドレスまたはパスワードが間違っています。';
+          break;
+        case 'auth/too-many-requests':
+          errorMessage = '複数回のログイン試行に失敗しました。セキュリティのため、しばらく待ってから再度お試しください。';
+          break;
+        default:
+          errorMessage = `予期せぬエラーが発生しました。${errorDetailMessage ? `詳細: ${errorDetailMessage}` : ''} 再度お試しください。`;
+          if (!errorDetailMessage && Object.keys(error).length === 0) {
+            errorMessage = 'ログイン中に不明なエラーが発生しました。ブラウザの拡張機能を一時的に無効にしてお試しください。';
+          }
+      }
+
+      if (typeof setModal === 'function') {
+        setModal({
+          isOpen: true,
+          title: 'ログイン失敗',
+          message: errorMessage,
+          onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
+          showCancelButton: false,
+        });
+      } else {
+        console.error('LoginScreen Error: setModal is not a function when showing login error.');
+      }
+    } finally {
+      setLoginLoading(false); // ログイン処理終了
+      if (typeof setIsLoading === 'function') {
+        setIsLoading(false); // アプリ全体のローディングも終了
+      }
+    }
+  }, [email, password, auth, setScreen, setModal, setIsLoading, setUserId]); // onLoginSuccess を setUserId に変更
 
   return (
-    <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4 text-white animate-fade-in font-inter"> {/* font-inter を追加 */}
-      <h2 className="text-3xl font-bold mb-6 text-center">ログイン</h2>
+    <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4">
+      <div className="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-md animate-fade-in-up">
+        <h2 className="text-3xl font-bold text-white mb-6 text-center">ログイン</h2>
 
-      <div className="w-full max-w-md bg-gray-800 p-8 rounded-xl shadow-lg animate-slide-in-right">
         <div className="mb-4">
-          <label className="block text-gray-300 text-sm font-bold mb-2" htmlFor="email">
+          <label htmlFor="email" className="block text-gray-300 text-sm font-bold mb-2">
             メールアドレス
           </label>
           <input
             type="email"
             id="email"
+            className="shadow appearance-none border border-gray-700 rounded-lg w-full py-3 px-4 text-gray-200 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700"
+            placeholder="your@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="shadow appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-gray-100"
-            placeholder="メールアドレス"
+            autoComplete="email"
           />
         </div>
+
         <div className="mb-6">
-          <label className="block text-gray-300 text-sm font-bold mb-2" htmlFor="password">
+          <label htmlFor="password" className="block text-gray-300 text-sm font-bold mb-2">
             パスワード
           </label>
-          <div className="relative">
-            <input
-              type={showPassword ? 'text' : 'password'}
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="shadow appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 mb-3 leading-tight focus:outline-none focus:shadow-outline bg-gray-100 pr-10"
-              placeholder="パスワード"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm leading-5"
-            >
-              <svg className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                {showPassword ? (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.879 9.879a3 3 0 014.242 4.242M13.875 18.825L6.879 11.829m3.364 3.364l-3.364 3.364m-3.92-3.92l3.364-3.364" />
-                ) : (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                )}
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
-            </button>
-          </div>
-          <p className="text-right text-sm mt-2">
-            <button
-              onClick={() => setScreen('forgot_password')}
-              className="text-blue-400 hover:text-blue-300 font-semibold focus:outline-none"
-            >
-              パスワードをお忘れですか？
-            </button>
-          </p>
+          <input
+            type="password"
+            id="password"
+            className="shadow appearance-none border border-gray-700 rounded-lg w-full py-3 px-4 text-gray-200 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+          />
         </div>
+
         <button
           onClick={handleLogin}
-          className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-full shadow-md transition-all duration-300 transform hover:scale-105 active:scale-95"
+          disabled={loginLoading}
+          className={`w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg focus:outline-none focus:shadow-outline transition-all duration-300 transform ${loginLoading ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 active:scale-95'}`}
         >
-          ログイン
+          {loginLoading ? <LoadingSpinner size="sm" /> : 'ログイン'}
         </button>
-        <p className="text-center text-gray-400 text-sm mt-6">
-          アカウントをお持ちではありませんか？{' '}
+
+        <div className="mt-6 text-center">
+          <button
+            onClick={() => setScreen('forgot_password')}
+            className="inline-block align-baseline font-bold text-sm text-blue-400 hover:text-blue-300 mr-4"
+          >
+            パスワードを忘れた場合
+          </button>
           <button
             onClick={() => setScreen('register')}
-            className="text-blue-400 hover:text-blue-300 font-semibold focus:outline-none"
+            className="inline-block align-baseline font-bold text-sm text-blue-400 hover:text-blue-300"
           >
-            新規登録
+            新規登録はこちら
           </button>
-        </p>
-        <p className="text-center text-gray-400 text-sm mt-2">
+        </div>
+
+        <div className="mt-4 text-center">
           <button
             onClick={() => setScreen('guest_intro')}
-            className="text-gray-500 hover:text-gray-400 font-semibold focus:outline-none"
+            className="inline-block align-baseline font-bold text-sm text-gray-400 hover:text-gray-300"
           >
-            戻る
+            ゲストとして続ける
           </button>
-        </p>
+        </div>
       </div>
     </div>
   );

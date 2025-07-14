@@ -1,9 +1,11 @@
+// src/screens/QrCodeScanner.js
+
 import React, { useEffect, useRef, forwardRef, useCallback, useImperativeHandle } from 'react';
 import jsQR from 'jsqr'; // jsQRライブラリをインポート
 
 // QrCodeScanner コンポーネント
 // isActive: カメラを有効/無効にするためのプロパティ
-// onResult: QRコードが検出されたときに呼び出されるコールバック
+// onResult: QRコードが検出されたときに呼び出されるコールバック (検出されたQRコードのテキストデータが渡される)
 // onError: カメラまたはスキャン中にエラーが発生したときに呼び出されるコールバック
 // constraints: MediaDevices.getUserMedia() に渡す制約オブジェクト
 // scanDelay: スキャン処理の頻度 (ミリ秒)
@@ -44,8 +46,7 @@ const QrCodeScanner = forwardRef(({ isActive, onResult, onError, constraints, sc
     }
     if (videoRef.current) {
       videoRef.current.srcObject = null;
-      // video.pause() は不要な場合が多いが、念のため
-      if (!videoRef.current.paused) {
+      if (!videoRef.current.paused) { // paused プロパティで確認
         videoRef.current.pause();
         console.log("QrCodeScanner: stopCamera - ビデオを一時停止しました。");
       }
@@ -55,17 +56,16 @@ const QrCodeScanner = forwardRef(({ isActive, onResult, onError, constraints, sc
 
   // QRコードをスキャンするメインループ
   const scanQRCode = useCallback(() => {
-    // console.log("QrCodeScanner: scanQRCode - スキャンループが実行されました。"); // スキャン頻度が高すぎるのでコメントアウト
-
     if (!videoRef.current || !canvasRef.current || !videoRef.current.videoWidth || videoRef.current.paused) {
-      console.warn("QrCodeScanner: scanQRCode - ビデオが準備できていないか、一時停止しています。次のフレームを待機します。");
+      // ビデオが準備できていない、または一時停止している場合は次のフレームを待つ
       animationFrameId.current = requestAnimationFrame(scanQRCode);
       return;
     }
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    const context = canvas.getContext('2d');
+    // ★修正: willReadFrequently を true に設定
+    const context = canvas.getContext('2d', { willReadFrequently: true }); 
 
     // キャンバスのサイズをビデオのサイズに合わせる
     canvas.width = video.videoWidth;
@@ -78,28 +78,29 @@ const QrCodeScanner = forwardRef(({ isActive, onResult, onError, constraints, sc
     const currentTime = Date.now();
     if (currentTime - lastScanTime.current > scanDelay) {
       lastScanTime.current = currentTime;
-      console.log("QrCodeScanner: scanQRCode - スキャン処理を実行します。");
 
       // jsQRでQRコードを検出
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
       const code = jsQR(imageData.data, imageData.width, imageData.height, {
-        // inversionAttempts: "dontInvert", // ★この行を一時的にコメントアウト
+        inversionAttempts: "dontInvert", // 反転したQRコードを無視する設定
       });
 
       if (code) {
         console.log("QrCodeScanner: scanQRCode - QRコードを検出しました:", code.data);
-        onResult(code, null); // 親コンポーネントに結果を通知
-        // QRコード検出後もスキャンを続けるかどうかは親コンポーネントのロジックに依存
-        // ここでは明示的に停止せず、親がisActiveをfalseにするのを待つ
+        // ★ここを修正: onResult コールバックに検出されたテキストデータをオブジェクトとして渡す★
+        onResult({ text: code.data }); 
+        // QRコード検出後、スキャンループは停止せず、親コンポーネントがisActiveをfalseにするのを待つ
+        // stopCamera(); // ここでは停止しない
+        return; // QRコード検出後は次のフレームでのスキャンをスキップ
       } else {
-        // console.log("QrCodeScanner: scanQRCode - QRコードは検出されませんでした。"); // ログが大量に出るのでコメントアウト
+        // console.log("QrCodeScanner: scanQRCode - QRコードは検出されませんでした。");
+        // QRコードが検出されない場合でも、スキャンを続行
       }
     }
     
     // 次のフレームで再度スキャン
     animationFrameId.current = requestAnimationFrame(scanQRCode);
-  }, [onResult, scanDelay]);
-
+  }, [onResult, scanDelay]); // onResult を依存配列に追加
 
   // カメラを開始する関数
   const startCamera = useCallback(async () => {

@@ -1,10 +1,9 @@
-// App.js
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+
 // Firebase imports (firebaseConfig.jsからインポート)
-// useAppInitフック内でFirebaseインスタンスを取得するため、ここでは直接インポートしない
 import { doc, setDoc, updateDoc, collection, query, onSnapshot, addDoc, serverTimestamp, writeBatch, where, getDocs, getDoc } from 'firebase/firestore';
-// Cloud Functions のインポートを追加
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getFunctions, httpsCallable } from 'firebase/functions'; // Cloud Functions SDK をインポート
+import { getAuth, signInAnonymously } from 'firebase/auth'; // Auth SDK をインポート (テスト用)
 
 // 共通コンポーネントのインポート
 import LoadingSpinner from './components/common/LoadingSpinner';
@@ -43,42 +42,42 @@ import HomeDashboard from './components/layout/HomeDashboard';
 
 // --- Main App Component ---
 export default function ReMatApp() {
-  const [screen, setScreen] = useState('guest_intro'); // 初期画面を'guest_intro'に変更
-  const [isStoreMode, setIsStoreMode] = useState(false); // この状態はApp.jsに残す
-  const [storeLogo, setStoreLogo] = useState(null); // この状態はApp.jsに残す
-  const [chargeAmount, setChargeAmount] = useState(''); // ChargeScreenに渡すためApp.jsに残す
-  const [scannedAmount, setScannedAmount] = useState(null); // ScanScreenに渡すためApp.jsに残す
-  const [scannedStoreId, setScannedStoreId] = useState(null); // ScanScreenに渡すためApp.jsに残す
-  const [scanInputAmount, setScanInputAmount] = useState(''); // ScanScreenに渡すためApp.jsに残す
-  const [scanError, setScanError] = useState(''); // ScanScreenに渡すためApp.jsに残す
-  const [isLoading, setIsLoading] = useState(true); // 全体ローディング状態
-  const [scanMode, setScanMode] = useState('initial'); // ScanScreenに渡すためApp.jsに残す
-  const [lastTransactionDetails, setLastTransactionDetails] = useState({ type: null, amount: 0 }); // PaymentCompleteScreenに渡すためApp.jsに残す
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false); // サイドドロワーの開閉状態
+  const [screen, setScreen] = useState('guest_intro');
+  const [isStoreMode, setIsStoreMode] = useState(false);
+  const [storeLogo, setStoreLogo] = useState(null);
+  const [chargeAmount, setChargeAmount] = useState('');
+  const [scannedAmount, setScannedAmount] = useState(null);
+  const [scannedStoreId, setScannedStoreId] = useState(null);
+  const [scanInputAmount, setScanInputAmount] = useState('');
+  const [scanError, setScanError] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [scanMode, setScanMode] = useState('initial');
+  const [lastTransactionDetails, setLastTransactionDetails] = useState({ type: null, amount: 0 });
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   // useAppInitカスタムフックからFirebase関連の状態とインスタンスを取得
-  const { 
-    userId, 
-    isFirebaseReady, 
-    isInitialDataLoaded, 
-    splashScreenTimerCompleted, 
-    balance, 
-    points, 
-    userName, 
-    profileImage, 
-    history, 
-    notifications, 
-    auth, 
-    db, 
-    app, // useAppInitからappインスタンスを受け取る
+  const {
+    userId,
+    setUserId, // useAppInitからsetUserIdを受け取る
+    isFirebaseReady,
+    isInitialDataLoaded,
+    splashScreenTimerCompleted,
+    balance,
+    points,
+    userName,
+    profileImage,
+    history,
+    notifications,
+    auth,
+    db,
     appId,
+    firebaseApp, // useAppInit から firebaseApp インスタンスを取得
     setBalance,
     setPoints,
     setUserName,
     setProfileImage,
     setHistory,
-    setNotifications,
-    setUserId
+    setNotifications
   } = useAppInit();
 
   // useAppLoggerカスタムフックから画面表示用ログを取得
@@ -96,27 +95,32 @@ export default function ReMatApp() {
   const [toast, setToast] = useState(null);
   const hideToast = useCallback(() => { setToast(null); }, []);
 
-
   // 全体的なローディング完了を判断するuseEffect
   useEffect(() => {
     console.log(`Loading check: FirebaseReady=${isFirebaseReady}, DataLoaded=${isInitialDataLoaded}, SplashTimerDone=${splashScreenTimerCompleted}`);
     if (isFirebaseReady && isInitialDataLoaded && splashScreenTimerCompleted) {
-      setIsLoading(false);
+      setIsLoading(false); // アプリ全体のローディングを終了
       console.log("Overall app loading complete.");
-      
+
       // ログイン状態に応じて初期画面を設定
-      if (auth && auth.currentUser && !auth.currentUser.isAnonymous) {
-        setScreen('home'); // ログイン済みならhome
+      if (auth && auth.currentUser) { // authインスタンスとcurrentUserが存在することを確認
+        if (!auth.currentUser.isAnonymous) {
+          setScreen('home'); // ログイン済みならhome
+        } else {
+          setScreen('guest_intro'); // 匿名ユーザーならguest_intro
+        }
       } else {
-        setScreen('guest_intro'); // 匿名ユーザーならguest_intro
+        // auth.currentUser がまだ設定されていない場合（初期ロード時など）は、ゲスト画面へ
+        setScreen('guest_intro');
       }
     }
-  }, [isFirebaseReady, isInitialDataLoaded, splashScreenTimerCompleted, auth]); // splashScreenTimerCompletedを依存配列に含める
+  }, [isFirebaseReady, isInitialDataLoaded, splashScreenTimerCompleted, auth, setIsLoading, setScreen]);
+
 
   const handleProfileImageUpload = useCallback((base64Data) => {
     setProfileImage(base64Data); // setProfileImageはuseAppInitから提供される
     console.log("App.js: profileImage state updated with Base64 data.");
-  }, [setProfileImage]); // setProfileImageを依存配列に追加
+  }, [setProfileImage]);
 
 
   const handleStoreLogoUpload = (event) => {
@@ -130,7 +134,7 @@ export default function ReMatApp() {
     }
   };
 
-  // handleCharge関数。確認モーダルを追加
+  // handleCharge関数。確認モーダルを追加 (この関数はCloud Functions化されていないため、変更なし)
   const handleCharge = useCallback(async (amount) => { // amount を引数として受け取るように修正
     if (isNaN(amount) || amount <= 0) {
       setModal({
@@ -177,7 +181,7 @@ export default function ReMatApp() {
       showCancelButton: true,
       onConfirm: async () => {
         setModal(prev => ({ ...prev, isOpen: false })); // 確認モーダルを閉じる
-        
+
         // 実際のチャージ処理を開始
         setModal({
           isOpen: true,
@@ -196,7 +200,7 @@ export default function ReMatApp() {
           // バッチ処理を開始
           const batch = writeBatch(db);
 
-          // 1. プロファイルの残高とポイントを更新
+          // 1. プロフィールの残高とポイントを更新
           batch.update(profileDocRef, {
             balance: balance + amount,
             points: points + Math.floor(amount * 0.01) // 例: チャージで1%ポイント付与
@@ -252,12 +256,15 @@ export default function ReMatApp() {
         setToast({ message: 'チャージがキャンセルされました。', type: 'info' });
       }
     });
-  }, [balance, userId, db, auth, appId, setModal, resetModal, setToast, setScreen, setChargeAmount, setBalance, setPoints]); // setBalance, setPointsを依存配列に追加
+  }, [balance, userId, db, auth, appId, setModal, resetModal, setToast, setScreen, setChargeAmount, setBalance, setPoints]);
 
-  // handlePayment関数はPaymentConfirmationScreenから呼ばれるように変更
-  const confirmPayment = useCallback(async (paymentAmount, storeNameForHistory = 'QR決済店舗') => { // 金額と店舗名を引数として受け取る
+  // confirmPayment 関数を Cloud Functions (processPayment) を呼び出すように修正
+  const confirmPayment = useCallback(async (paymentAmount, storeNameForHistory = 'QR決済店舗') => {
     console.log("confirmPayment: 関数が呼び出されました。");
+    console.log("confirmPayment: paymentAmount =", paymentAmount);
+    console.log("confirmPayment: scannedStoreId =", scannedStoreId);
 
+    // 支払い処理中のモーダルを表示
     setModal({
       isOpen: true,
       title: '支払い中',
@@ -267,25 +274,12 @@ export default function ReMatApp() {
       onConfirm: () => {},
     });
 
-    // 匿名ユーザーチェックを強化
-    if (!auth.currentUser || auth.currentUser.isAnonymous) {
-        setModal({
-            isOpen: true,
-            title: '機能制限',
-            message: '支払いを行うにはアカウント登録またはログインが必要です。',
-            onConfirm: () => { resetModal(); setScreen('login'); },
-            showCancelButton: false,
-        });
-        return;
-    }
-
-    // Firebase初期化状態とuserIdのチェック
-    if (!db || !userId || !isFirebaseReady) { // isFirebaseReady のチェックも追加
-      console.error("Firestore not initialized, user not authenticated, or Firebase not ready.");
+    if (!auth?.currentUser || !firebaseApp) { // firebaseApp の存在チェックを追加
+      console.error("Firebase App not initialized or user not authenticated.");
       setModal({
         isOpen: true,
         title: 'エラー',
-        message: 'サービスが利用できません。時間をおいて再度お試しください。',
+        message: 'サービスが利用できません。ログイン状態を確認してください。',
         onConfirm: () => resetModal(),
         showCancelButton: false,
       });
@@ -294,93 +288,68 @@ export default function ReMatApp() {
 
     // scannedStoreIdがオブジェクトの場合、receiverIdとreceiverNameを抽出
     const receiverId = typeof scannedStoreId === 'object' && scannedStoreId?.id ? scannedStoreId.id : null;
-    const receiverName = typeof scannedStoreId === 'object' && scannedStoreId?.name ? scannedStoreId.name : null; // receiverNameを取得
-    const isReceiverPayment = !!receiverId; // receiverIdがあれば受取人支払い
+    const receiverName = typeof scannedStoreId === 'object' && scannedStoreId?.name ? scannedStoreId.name : null;
 
-    console.log("confirmPayment: isReceiverPayment =", isReceiverPayment); // デバッグログ
-    console.log("confirmPayment: receiverId =", receiverId); // デバッグログ
-    console.log("confirmPayment: receiverName =", receiverName); // デバッグログ
-
-    // Cloud Function呼び出し前の認証状態の詳細ログ (強化)
-    console.log("confirmPayment: Cloud Function呼び出し前の認証状態の詳細:");
-    console.log("confirmPayment: auth.currentUser:", auth.currentUser);
-    console.log("confirmPayment: auth.currentUser.uid:", auth.currentUser?.uid);
-    console.log("confirmPayment: auth.currentUser.email:", auth.currentUser?.email); // メールアドレスも確認
-    console.log("confirmPayment: auth.currentUser.emailVerified:", auth.currentUser?.emailVerified);
-    console.log("confirmPayment: auth.currentUser.isAnonymous:", auth.currentUser?.isAnonymous);
-    console.log("confirmPayment: userId (from useAppInit):", userId);
-    console.log("confirmPayment: isFirebaseReady (from useAppInit):", isFirebaseReady); // Firebase Ready状態も確認
-    console.log("confirmPayment: isInitialDataLoaded (from useAppInit):", isInitialDataLoaded); // 初期データロード状態も確認
-
-    // IDトークンを取得してログに出力
-    let idToken = null;
-    if (auth.currentUser) {
-      try {
-        idToken = await auth.currentUser.getIdToken(true); // 強制的にリフレッシュして最新のトークンを取得
-        console.log("confirmPayment: auth.currentUser.getIdToken() success. Token length:", idToken.length);
-        // console.log("confirmPayment: auth.currentUser.idToken:", idToken); // トークン全体は機密情報なので、本番では出力しない
-      } catch (tokenError) {
-        console.error("confirmPayment: Failed to get ID token:", tokenError);
-        setModal({
-          isOpen: true,
-          title: '認証トークンエラー',
-          message: `認証トークンの取得に失敗しました。再度ログインしてください。\n詳細: ${tokenError.message}`,
-          onConfirm: () => { resetModal(); setScreen('login'); },
-          showCancelButton: false,
-        });
-        return; // トークン取得失敗時は処理を中断
-      }
-    } else {
-      console.warn("confirmPayment: auth.currentUser is null. Cannot get ID token.");
-    }
-
+    console.log("confirmPayment: receiverId =", receiverId);
+    console.log("confirmPayment: receiverName =", receiverName);
 
     try {
-      // getFunctionsにappインスタンスとリージョンを渡す (重要)
-      const functionsInstance = getFunctions(app, 'asia-northeast1'); // ★リージョンを明示的に指定
-      const processPaymentCallable = httpsCallable(functionsInstance, 'processPayment');
+      // Functions インスタンスを取得
+      const functionsInstance = getFunctions(firebaseApp);
+      console.log("confirmPayment: Functions Instance:", functionsInstance); // 追加ログ
 
-      // Cloud Functionを呼び出す
-      const result = await processPaymentCallable({
+      // processPayment Callable Function の参照を作成
+      // 関数名 ('processPayment') とリージョン ('us-central1') は、
+      // デプロイした Cloud Function と正確に一致している必要があります。
+      const callProcessPayment = httpsCallable(functionsInstance, 'processPayment');
+      console.log("confirmPayment: callProcessPayment Callable:", callProcessPayment); // 追加ログ
+
+      console.log("Cloud Function 'processPayment' を呼び出し中...");
+
+      // Cloud Function を呼び出すためのペイロード
+      const callData = {
         receiverId: receiverId,
         amount: paymentAmount,
-        senderName: userName, // 送金元の名前を渡す
-        receiverName: receiverName // 受取人の名前を渡す
-      });
+        senderName: userName, // 現在のユーザー名（通知用）
+        receiverName: receiverName // 受取人の名前（通知用）
+      };
+      console.log("confirmPayment: Calling Cloud Function with data:", callData); // 追加ログ
 
-      console.log("Cloud Function response:", result.data);
+      const result = await callProcessPayment(callData);
 
-      if (result.data.success) {
-        setScannedAmount(null);
-        setScannedStoreId(null);
-        setScanInputAmount('');
-        setLastTransactionDetails({ type: 'payment', amount: paymentAmount });
-        setScanMode('initial');
-        setScreen('支払い完了');
-        resetModal();
-        setToast({ message: `¥${paymentAmount.toLocaleString()}の支払いが完了しました！`, type: 'success' });
-      } else {
-        setModal({
-          isOpen: true,
-          title: '支払い失敗',
-          message: result.data.message || '送金処理中に不明なエラーが発生しました。',
-          onConfirm: () => resetModal(),
-          showCancelButton: false,
-        });
-        setToast({ message: `支払い失敗: ${result.data.message || '不明なエラー'}`, type: 'error' });
-      }
+      console.log('Cloud Function 呼び出し成功:', result.data);
+
+      // Functionsからの結果に基づいてUIを更新
+      // Cloud Function 側で残高やポイントが更新されるため、ここではstateを直接更新しない
+      // 必要であれば、Functions からの最新残高やポイントを受け取ってstateを更新するロジックを追加
+      // 例: setBalance(result.data.newSenderBalance); setPoints(result.data.newSenderPoints);
+
+      setScannedAmount(null);
+      setScannedStoreId(null);
+      setScanInputAmount('');
+      setLastTransactionDetails({ type: 'payment', amount: paymentAmount });
+      setScanMode('initial');
+      setScreen('支払い完了');
+      resetModal();
+      setToast({ message: `¥${paymentAmount.toLocaleString()}の支払いが完了しました！`, type: 'success' });
 
     } catch (error) {
-      console.error("Error calling Cloud Function:", error);
-      let errorMessage = '送金処理中に予期せぬエラーが発生しました。';
-      if (error.code === 'functions/unauthenticated') { // 特定のエラーコードに対するメッセージ
-        errorMessage = '認証されていません。ログイン状態を確認してください。';
-      } else if (error.code) {
-        errorMessage = `エラーコード: ${error.code}\nメッセージ: ${error.message}`;
-      } else if (error.message) {
-        errorMessage = error.message;
+      console.error("Error calling Cloud Function 'processPayment':", error);
+
+      let errorMessage = '支払い処理中にエラーが発生しました。';
+      if (error.code) {
+        // Callable Function からの HttpsError
+        errorMessage = `支払い失敗: ${error.message || '不明なエラー'}`;
+        if (error.details) {
+          // Functions 側でエラー詳細が提供されている場合
+          console.error("Functions Error Details:", error.details);
+          // errorMessage += `\n詳細: ${JSON.stringify(error.details)}`; // 必要であれば詳細も表示
+        }
+      } else {
+        // その他のネットワークエラーなど
+        errorMessage += `\n詳細: ${error.message || error.toString()}`;
       }
-      
+
       setModal({
         isOpen: true,
         title: '支払い失敗',
@@ -388,11 +357,11 @@ export default function ReMatApp() {
         onConfirm: () => resetModal(),
         showCancelButton: false,
       });
-      setToast({ message: `支払い失敗: ${errorMessage}`, type: 'error' });
+      setToast({ message: errorMessage, type: 'error' });
     }
+  }, [balance, userId, db, appId, setModal, resetModal, setToast, setScreen, setScannedAmount, setScannedStoreId, setScanInputAmount, setLastTransactionDetails, setScanMode, userName, setBalance, setPoints, auth, firebaseApp]); // firebaseApp も依存リストに追加
 
-  }, [balance, userId, db, auth, app, isFirebaseReady, isInitialDataLoaded, appId, setModal, resetModal, setToast, setScreen, setScannedAmount, setScannedStoreId, setScanInputAmount, setLastTransactionDetails, setScanMode, userName, setBalance, setPoints]); // app, isFirebaseReady, isInitialDataLoaded を依存配列に追加
-
+  // handleNotificationRead と handleMarkAllNotificationsRead は変更なし
   const handleNotificationRead = useCallback(async (id) => {
     if (!db || !userId) {
       console.error("Firestore not initialized or user not authenticated.");
@@ -608,7 +577,7 @@ export default function ReMatApp() {
         <>
           {/* 認証フロー画面 */}
           {screen === 'guest_intro' && <GuestIntroScreen setScreen={setScreen} setModal={setModal} auth={auth} />}
-          {screen === 'login' && <LoginScreen setScreen={setScreen} setModal={setModal} auth={auth} setIsLoading={setIsLoading} setUserId={setUserId} />}
+          {screen === 'login' && <LoginScreen setScreen={setScreen} setModal={setModal} auth={auth} setIsLoading={setIsLoading} setUserId={setUserId} />} {/* onLoginSuccessをsetUserIdに変更 */}
           {screen === 'register' && <RegisterScreen setScreen={setScreen} setModal={setModal} auth={auth} setIsLoading={setIsLoading} setUserId={setUserId} db={db} appId={appId} />}
           {screen === 'register_complete' && <RegisterCompleteScreen setScreen={setScreen} userEmail={auth?.currentUser?.email || ''} />}
           {screen === 'account_benefits' && <AccountBenefitsScreen setScreen={setScreen} />}
@@ -670,18 +639,6 @@ export default function ReMatApp() {
                 setScreen={setScreen}
                 isLoading={isLoading}
               />
-
-              {/* ここに広告ユニットコードを直接挿入 */}
-              <div className="my-8 text-center">
-                <ins className="adsbygoogle"
-                     style={{ display: 'block' }}
-                     data-ad-client="ca-pub-2446505733093667"
-                     data-ad-slot="6417629682" // 提供された広告ユニットコードのID
-                     data-ad-format="auto"
-                     data-full-width-responsive="true"></ins>
-              </div>
-              {/* 広告ユニットの初期化はindex.htmlで行うため、ここでの adsbygoogle.push は不要です */}
-
             </div>
           )}
 
