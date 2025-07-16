@@ -1,9 +1,9 @@
 // src/hooks/useAppInit.js
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, signInAnonymously, signInWithCustomToken } from 'firebase/auth';
-import { doc, setDoc, collection, onSnapshot } from 'firebase/firestore';
-import { firebaseDb, firebaseAuth, firebaseApp as appInstance } from '../firebase/firebaseConfig'; // firebaseApp を appInstance としてインポート
+import { doc, setDoc, collection, onSnapshot, query, where, getDocs } from 'firebase/firestore';
+import { firebaseDb, firebaseAuth, firebaseApp as appInstance } from '../firebase/firebaseConfig';
 
 /**
  * アプリケーションの初期化、Firebase認証、および初期データロードを管理するカスタムフック。
@@ -16,19 +16,20 @@ import { firebaseDb, firebaseAuth, firebaseApp as appInstance } from '../firebas
  * points: number,
  * userName: string,
  * profileImage: string|null,
- * history: Array<object>,\
- * notifications: Array<object>,\
- * auth: object,\
- * db: object,\
- * appId: string,\
- * firebaseApp: object, // ★追加: firebaseAppインスタンスも返す★
- * setUserId: (value: string|null) => void,\
- * setBalance: (value: number) => void,\
- * setPoints: (value: number) => void,\
- * setUserName: (value: string) => void,\
- * setProfileImage: (value: string|null) => void,\
- * setHistory: (value: Array<object>) => void,\
- * setNotifications: (value: Array<object>) => void
+ * history: Array<object>,
+ * notifications: Array<object>,
+ * auth: object,
+ * db: object,
+ * appId: string,
+ * firebaseApp: object,
+ * setUserId: (value: string|null) => void,
+ * setBalance: (value: number) => void,
+ * setPoints: (value: number) => void,
+ * setUserName: (value: string) => void,
+ * setProfileImage: (value: string|null) => void,
+ * setHistory: (value: Array<object>) => void,
+ * setNotifications: (value: Array<object>) => void,
+ * isUserRegistered: boolean // ★追加: ユーザーが登録済みかどうかを示すフラグ
  * }} アプリケーションの初期状態とFirebaseインスタンス、および状態更新関数
  */
 export const useAppInit = () => {
@@ -36,6 +37,8 @@ export const useAppInit = () => {
   const [isFirebaseReady, setIsFirebaseReady] = useState(false);
   const [isInitialDataLoaded, setIsInitialDataLoaded] = useState(false);
   const [splashScreenTimerCompleted, setSplashScreenTimerCompleted] = useState(false);
+  // ★追加: ユーザーが登録済みかどうかを示す状態
+  const [isUserRegistered, setIsUserRegistered] = useState(false); 
 
   const [balance, setBalance] = useState(0);
   const [points, setPoints] = useState(0);
@@ -48,34 +51,56 @@ export const useAppInit = () => {
   const auth = firebaseAuth;
   const appId = typeof __app_id !== 'undefined' ? __app_id : 're-mat-mvp';
 
+  // Firestoreリスナーのunsubscribe関数を保持するref
+  const unsubscribeRefs = useRef([]);
+
   // Firebase初期化と認証のuseEffect
   useEffect(() => {
     if (!auth || !db) {
-        console.log("useAppInit: Waiting for Firebase instances to be ready...");
-        return;
+      console.log("useAppInit: Waiting for Firebase instances to be ready...");
+      return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      // 既存のFirestoreリスナーをすべてクリーンアップ
+      unsubscribeRefs.current.forEach(unsubscribe => unsubscribe());
+      unsubscribeRefs.current = [];
+
       if (user) {
-        // ユーザーが既にログインしている場合（匿名、または認証済み）
         setUserId(user.uid);
-        console.log("useAppInit: Auth state changed: Logged in as", user.uid, "Email Verified:", user.emailVerified);
+        // ユーザーが匿名でない場合、登録済みユーザーと判断
+        setIsUserRegistered(!user.isAnonymous); 
+        console.log("useAppInit: Auth state changed: Logged in as", user.uid, "Email Verified:", user.emailVerified, "Is Anonymous:", user.isAnonymous);
       } else {
         // ユーザーがログインしていない場合、カスタムトークンまたは匿名でログインを試みる
         console.log("useAppInit: Auth state changed: No user logged in. Attempting anonymous or custom token login.");
 
+        // ログアウト後の状態をリセット
+        setIsInitialDataLoaded(false);
+        setBalance(0);
+        setPoints(0);
+        setUserName('');
+        setProfileImage(null);
+        setHistory([]);
+        setNotifications([]);
+        setUserId(null); // userIdをnullにリセット
+        setIsUserRegistered(false); // ★追加: ユーザーが登録されていない状態にリセット
+
+        // Canvas環境で提供される初期認証トークンを使用
+        // このトークンは、ユーザーがCanvasにアクセスした際に自動的に生成されるカスタムトークンです。
+        // 存在しない場合は匿名認証にフォールバックします。
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          // Canvas環境でカスタムトークンが提供されている場合、まずカスタムトークンでログインを試みる
           try {
             await signInWithCustomToken(auth, __initial_auth_token);
             setUserId(auth.currentUser.uid);
+            setIsUserRegistered(!auth.currentUser.isAnonymous); // 認証後、isUserRegisteredを更新
             console.log("useAppInit: Signed in with custom token:", auth.currentUser.uid);
           } catch (tokenError) {
             console.warn("useAppInit: Custom token login failed, falling back to anonymous:", tokenError);
-            // カスタムトークンログインが失敗した場合、匿名ログインにフォールバック
             try {
               await signInAnonymously(auth);
               setUserId(auth.currentUser.uid);
+              setIsUserRegistered(!auth.currentUser.isAnonymous); // 認証後、isUserRegisteredを更新
               console.log("useAppInit: Signed in anonymously (fallback from custom token):", auth.currentUser.uid);
             } catch (anonError) {
               console.error("useAppInit: Final fallback to anonymous failed:", anonError);
@@ -86,19 +111,24 @@ export const useAppInit = () => {
           try {
             await signInAnonymously(auth);
             setUserId(auth.currentUser.uid);
+            setIsUserRegistered(!auth.currentUser.isAnonymous); // 認証後、isUserRegisteredを更新
             console.log("useAppInit: Signed in anonymously (default):", auth.currentUser.uid);
           } catch (error) {
             console.error("useAppInit: Anonymous sign-in failed:", error);
           }
         }
       }
-      setIsFirebaseReady(true); // Firebaseインスタンスが利用可能になったことを示す
+      setIsFirebaseReady(true);
     });
 
-    return () => unsubscribe();
-  }, [auth, db]); // authとdbを依存配列に含める
+    return () => {
+      unsubscribeAuth();
+      unsubscribeRefs.current.forEach(unsubscribe => unsubscribe());
+      unsubscribeRefs.current = [];
+    };
+  }, [auth, db]);
 
-  // 初期データ読み込みのuseEffect
+  // 初期データ読み込みのuseEffect (userIdに依存)
   useEffect(() => {
     if (!db || !userId || !isFirebaseReady) {
       console.warn("useAppInit: Firestore listener not started: db =", db, "userId =", userId, "isFirebaseReady =", isFirebaseReady);
@@ -129,6 +159,7 @@ export const useAppInit = () => {
         console.log("useAppInit: Profile data updated:", data);
       } else {
         console.warn("useAppInit: User profile document does not exist, creating new one.");
+        // 新規ユーザーのためにドキュメントを作成
         setDoc(profileDocRef, { balance: 0, points: 0, name: '', email: '', profileImageUrl: '', phoneNumber: '', address: {} }).catch(console.error); 
         setBalance(0);
         setPoints(0);
@@ -190,15 +221,17 @@ export const useAppInit = () => {
       }
     });
 
+    // リスナーのunsubscribe関数をrefに保存
+    unsubscribeRefs.current = [unsubscribeProfile, unsubscribeHistory, unsubscribeNotifications];
+
     return () => {
-      unsubscribeProfile();
-      unsubscribeHistory();
-      unsubscribeNotifications();
-      console.log("useAppInit: Firestore listeners unsubscribed.");
+      // 次のuseEffectが実行される前に、以前のリスナーを停止
+      unsubscribeRefs.current.forEach(unsubscribe => unsubscribe());
+      unsubscribeRefs.current = [];
     };
   }, [db, userId, isFirebaseReady, appId]);
 
-  // スプラッシュスクリーンの最低表示時間確保のuseEffect (useAppInit内に移動)
+  // スプラッシュスクリーンの最低表示時間確保のuseEffect
   useEffect(() => {
     const timer = setTimeout(() => {
       setSplashScreenTimerCompleted(true);
@@ -209,7 +242,7 @@ export const useAppInit = () => {
 
   return {
     userId,
-    setUserId, // setUserIdも返す
+    setUserId,
     isFirebaseReady,
     isInitialDataLoaded,
     splashScreenTimerCompleted,
@@ -219,15 +252,16 @@ export const useAppInit = () => {
     profileImage,
     history,
     notifications,
-    auth, // Firebase Authインスタンスも返す
-    db,   // Firebase Firestoreインスタンスも返す
-    appId, // アプリIDも返す
-    firebaseApp: appInstance, // ★ここを追加/修正: firebaseAppインスタンスを返す★
+    auth,
+    db,
+    appId,
+    firebaseApp: appInstance,
     setBalance,
     setPoints,
     setUserName,
     setProfileImage,
     setHistory,
-    setNotifications
+    setNotifications,
+    isUserRegistered // ★追加: ユーザーが登録済みかどうかを返す
   };
 };

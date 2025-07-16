@@ -6,7 +6,7 @@ const homeIcon = "/icons/HOME.png";
 const accountIcon = "/icons/account.png";
 const infoIcon = "/icons/info.png";
 const chargeIcon = "/icons/charge.png"; // charge.png をチャージ用アイコンとしてインポート
-const walletIcon = "/icons/wallet.png"; // wallet.png を受け取る用アイコンとして再利用
+const receiveIcon = "/icons/receive.png"; // ★追加: 新しい受け取るアイコンのパス
 const historyIcon = "/icons/history.png";
 const pointsIcon = "/icons/points.png";
 const scanIcon = "/icons/scan.png"; // これはスキャン画面用なのでそのまま
@@ -113,7 +113,7 @@ const SideDrawer = ({ isOpen, onClose, setScreen, auth, userId, userName, setMod
                 onClick={() => navigateAndClose('受け取る')}
                 className="w-full flex items-center p-3 rounded-lg text-white hover:bg-gray-700 transition-colors duration-200 active:scale-95"
               >
-                <img src={walletIcon} alt="Receive by QR" className="w-6 h-6 mr-3" /> {/* walletIcon に変更 */}
+                <img src={receiveIcon} alt="Receive by QR" className="w-6 h-6 mr-3" /> {/* walletIcon に変更 */}
                 <span>QRで受け取る</span>
               </button>
 

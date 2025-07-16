@@ -10,3 +10,4 @@ export const chargeIcon = "/icons/charge.png";
 export const pointsIcon = "/icons/points.png";
 export const historyIcon = "/icons/history.png";
 export const payIcon = "/icons/pay.png";
+export const receiveIcon = "/icons/receive.png"; // ★この行を追加

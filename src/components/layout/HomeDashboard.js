@@ -2,7 +2,9 @@
 
 import React, { useState } from 'react'; // useState をインポート
 import AdSenseAd from '../common/AdSenseAd'; // AdSenseAdコンポーネントをインポート
-import { scanIcon, chargeIcon, pointsIcon, historyIcon, walletIcon, payIcon } from '../../constants/icons'; // アイコンをインポート
+// アイコンをインポート
+// walletIcon の代わりに receiveIcon をインポートするように変更
+import { scanIcon, chargeIcon, pointsIcon, historyIcon, payIcon, receiveIcon } from '../../constants/icons'; 
 
 /**
  * ホーム画面の主要なダッシュボードコンテンツを表示するコンポーネント。
@@ -21,16 +23,7 @@ const HomeDashboard = ({ auth, isStoreMode, userId, userName, balance, points, s
 
   return (
     <>
-      {/* トップヘッダーのプレースホルダー (App.jsから移動した部分) */}
-      {/* この部分はApp.jsのHome画面のレンダリングロジックの直後、DebugInfoの上に配置されます */}
-      {/* 通常、この部分はApp.jsまたは別のレイアウトコンポーネントで管理されますが、
-          HomeDashboardがトップレベルのコンテンツとして機能する場合、ここに含めることも可能です。
-          現在の提供されたHomeDashboard.jsにはコメントアウトされたヘッダーが含まれていましたが、
-          今回は広告配置に焦点を当てるため、その部分は含めず、代わりに広告を配置します。
-      */}
-
       {/* トップのプロモーションバナー (既存のコードから移動) */}
-      {/* このバナーはAdSense広告とは別の、アプリ独自のプロモーション表示として残します。 */}
       <div className="w-full h-16 bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center text-white text-sm font-bold shadow-md relative overflow-hidden rounded-xl mb-6">
         <div className="absolute inset-0 bg-pattern-dots opacity-20"></div>
         <span className="relative z-10">お得なキャンペーン実施中！今すぐチェック！</span>
@@ -111,14 +104,26 @@ const HomeDashboard = ({ auth, isStoreMode, userId, userName, balance, points, s
           { label: 'チャージ', action: 'チャージ', icon: chargeIcon, restricted: true },
           { label: 'ポイント', action: 'ポイント', icon: pointsIcon, restricted: false }, // ポイントはゲストでも見れる想定
           { label: '取引履歴', action: '取引履歴', icon: historyIcon, restricted: true },
-          { label: '受け取る', action: '受け取る', icon: walletIcon, restricted: true }, // 受け取るボタン
+          { label: '受け取る', action: '受け取る', icon: receiveIcon, restricted: true }, // ★変更: receiveIcon を使用
         ].map((button, index) => (
           <button
             key={index}
-            onClick={() => setScreen(button.action)}
+            onClick={() => {
+              // 匿名ユーザーで制限された機能の場合、モーダルを表示
+              if (auth?.currentUser?.isAnonymous && button.restricted) {
+                // setModal は HomeDashboard に渡されていないため、App.js で処理するか、
+                // HomeDashboard に setModal を props として渡す必要があります。
+                // ここでは、一旦コンソールログのみとします。
+                console.log("この機能はアカウント登録/ログインが必要です。");
+                // setScreen('guest_intro'); // 必要であればゲスト紹介画面に遷移
+              } else {
+                setScreen(button.action);
+              }
+            }}
             // 匿名ユーザーでrestrictedな機能の場合にopacityとcursor-not-allowedを追加
             className={`bg-[rgb(255,100,0)] text-white p-4 rounded-xl flex flex-col items-center justify-center shadow-md hover:bg-orange-600 transition-all duration-300 transform hover:scale-105 active:scale-95
               ${auth?.currentUser?.isAnonymous && button.restricted ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={auth?.currentUser?.isAnonymous && button.restricted} // 匿名ユーザーで制限された機能は無効化
           >
             <img src={button.icon} alt={button.label} className="w-10 h-10 mb-2" />
             <span className="text-white text-sm font-bold">{button.label}</span>
@@ -144,6 +149,7 @@ const HomeDashboard = ({ auth, isStoreMode, userId, userName, balance, points, s
           // 匿名ユーザーで支払いがrestrictedな機能の場合にopacityとcursor-not-allowedを追加
           className={`bg-red-600 text-white w-24 h-24 rounded-full text-sm flex flex-col justify-center items-center shadow-lg hover:bg-red-700 transition-all duration-300 transform hover:scale-110 active:scale-95
                 ${auth?.currentUser?.isAnonymous ? 'opacity-50 cursor-not-allowed' : ''}`} // 支払いは常にrestricted
+          disabled={auth?.currentUser?.isAnonymous} // 匿名ユーザーの場合はボタンを無効化
         >
           <img src={payIcon} alt="支払い" className="w-8 h-8 mb-1" />
           <span className="font-bold">支払い</span>
