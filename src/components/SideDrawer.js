@@ -113,7 +113,7 @@ const SideDrawer = ({ isOpen, onClose, setScreen, auth, userId, userName, setMod
                 onClick={() => navigateAndClose('受け取る')}
                 className="w-full flex items-center p-3 rounded-lg text-white hover:bg-gray-700 transition-colors duration-200 active:scale-95"
               >
-                <img src={receiveIcon} alt="Receive by QR" className="w-6 h-6 mr-3" /> {/* walletIcon に変更 */}
+                <img src={receiveIcon} alt="Receive by QR" className="w-6 h-6 mr-3" />
                 <span>QRで受け取る</span>
               </button>
 

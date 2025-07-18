@@ -1,161 +1,339 @@
-import React, { useState, useCallback, useEffect } from 'react';
+// src/screens/ReceivePaymentScreen.js
+
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+// QRious はCDNで読み込まれるため、ここではインポート不要です。
+
+import { getAuth } from 'firebase/auth'; // ユーザー認証状態の確認
+import LoadingSpinner from '../components/common/LoadingSpinner'; // LoadingSpinnerをインポート
+
+// デモ用のメニューデータを定義します
+// 実際にはFirestoreなどから取得することを想定
+const demoMenuItems = [
+  { id: '1', name: 'オーガニックコーヒー', price: 500, category: 'ドリンク' },
+  { id: '2', name: '特製クロワッサン', price: 350, category: 'フード' },
+  { id: '3', name: '季節のスペシャルサンド', price: 850, category: 'フード' },
+  { id: '4', name: 'フレッシュジュース', price: 600, category: 'ドリンク' },
+  { id: '5', name: '本日のケーキ', price: 480, category: 'デザート' },
+];
 
 const ReceivePaymentScreen = ({ userId, userName, setScreen, setModal }) => {
-  const [amount, setAmount] = useState(''); // ユーザーが入力する金額
-  const [qrData, setQrData] = useState(''); // QRコードに埋め込むデータ
-  const [qrError, setQrError] = useState(''); // QRコード生成時のエラーメッセージ
+  const [qrData, setQrData] = useState('');
+  const [totalAmount, setTotalAmount] = useState(0);
+  const [selectedItems, setSelectedItems] = useState({});
+  const [qrError, setQrError] = useState('');
+  const [showMenu, setShowMenu] = useState(true); // メニュー表示/金額直接入力を切り替える
+  const [directAmount, setDirectAmount] = useState(''); // 金額直接入力用
+  const [isQrGenerated, setIsQrGenerated] = useState(false); 
 
-  // QRコードデータを生成する関数
-  // ★変更点: useCallbackから外し、通常の関数として定義
-  const generateQrCodeData = () => {
-    if (!userId) {
-      setQrError("ユーザーIDが取得できません。ログイン状態を確認してください。");
-      return;
-    }
+  // QRコードを描画するcanvas要素への参照
+  const qrCanvasRef = useRef(null);
 
-    let dataToEmbed = {
-      receiverId: userId,
-      receiverName: userName || '匿名ユーザー' // 受取人名も埋め込む
-    };
+  const auth = getAuth();
+  const currentUser = auth.currentUser;
+  const isAnonymousUser = currentUser?.isAnonymous;
 
-    const parsedAmount = parseInt(amount, 10);
-    if (amount && (isNaN(parsedAmount) || parsedAmount <= 0)) {
-      setQrError("有効な金額（1円以上の数字）を入力してください。");
-      return;
-    }
-    if (parsedAmount > 0) {
-      dataToEmbed.amount = parsedAmount;
-    }
-
-    try {
-      const jsonString = JSON.stringify(dataToEmbed);
-      // JSON文字列をBase64エンコードしてからQRコードに埋め込む
-      const encodedData = btoa(unescape(encodeURIComponent(jsonString))); // UTF-8 -> Percent-encoding -> Base64
-      setQrData(encodedData);
-      setQrError(''); // エラーをクリア
-    } catch (e) {
-      console.error("QRコードデータ生成エラー:", e);
-      setQrError("QRコードデータの生成中にエラーが発生しました。");
-    }
-  }; // ★変更点: 依存配列を削除
-
-  // コンポーネントがマウントされたとき、または金額が変更されたときにQRコードを自動生成
-  useEffect(() => {
-    generateQrCodeData();
-  }, [amount, userId, userName, setQrError]); // ★変更点: generateQrCodeDataを依存配列から削除し、直接の依存関係を追加
-
-  // SVGでQRコードを描画するコンポーネント (簡単なSVG生成)
-  const QrCodeSvg = ({ text, size = 256, setModal }) => { 
-    const [svgString, setSvgString] = useState('');
-
-    useEffect(() => {
-      if (text) {
-        try {
-          if (window.QRious) {
-            const qr = new window.QRious({
-              value: text,
-              size: size,
-              level: 'H', // エラー訂正レベル
-              foreground: 'black', // QRコードの色
-              background: 'white'  // 背景色
-            });
-            setSvgString(qr.toDataURL()); // Data URL形式でSVGを取得
-          } else {
-            console.error("QRious library not loaded. Please include it in index.html.");
-            setSvgString(''); // エラー時は空に
-            if (setModal) { 
-              setModal({ 
-                isOpen: true,
-                title: 'ライブラリ不足',
-                message: 'QRコード生成に必要なライブラリが読み込まれていません。\n\nindex.htmlにQRiousのスクリプトタグを追加してください。',
-                onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
-                showCancelButton: false,
-              });
-            }
-          }
-        } catch (e) {
-          console.error("QRious SVG生成エラー:", e);
-          setSvgString('');
-        }
-      } else {
-        setSvgString('');
+  // 合計金額を計算する関数
+  const calculateTotal = useCallback(() => {
+    let total = 0;
+    Object.keys(selectedItems).forEach(itemId => {
+      const item = demoMenuItems.find(i => i.id === itemId);
+      if (item) {
+        total += item.price * selectedItems[itemId];
       }
-    }, [text, size, setModal]);
+    });
+    setTotalAmount(total);
+  }, [selectedItems]);
 
-    if (!svgString) {
-      return <div className="text-gray-400">QRコードを生成できません。</div>;
+  useEffect(() => {
+    if (showMenu) {
+      calculateTotal();
     }
+  }, [selectedItems, showMenu, calculateTotal]);
 
-    return <img src={svgString} alt="QR Code" className="w-full h-auto max-w-[256px] rounded-lg shadow-xl" />;
+  // qrDataが変更されたときにQRコードをcanvasに描画
+  useEffect(() => {
+    console.log("ReceivePaymentScreen: useEffect for qrData triggered. qrData:", qrData);
+    if (qrData && qrCanvasRef.current) {
+      console.log("ReceivePaymentScreen: Attempting to draw QR code on canvas.");
+      if (window.QRious) {
+        new window.QRious({
+          element: qrCanvasRef.current,
+          value: qrData,
+          size: 300, // QRコードのサイズ
+          background: '#FFFFFF', // 背景色
+          foreground: '#000000', // 前景色
+          level: 'H' // エラー訂正レベル
+        });
+        setIsQrGenerated(true);
+        console.log("ReceivePaymentScreen: QR code drawn successfully.");
+      } else {
+        console.error("ReceivePaymentScreen: window.QRious is not defined. Make sure QRious CDN is loaded in index.html.");
+        setQrError("QRコードライブラリが読み込まれていません。");
+        setIsQrGenerated(false);
+      }
+    } else {
+      console.log("ReceivePaymentScreen: qrData is empty or qrCanvasRef.current is null. Not drawing QR code.");
+      setIsQrGenerated(false);
+    }
+  }, [qrData]);
+
+  const handleToggleItem = (itemId) => {
+    setSelectedItems(prevItems => {
+      const newItems = { ...prevItems };
+      if (newItems[itemId]) {
+        delete newItems[itemId];
+      } else {
+        newItems[itemId] = 1;
+      }
+      return newItems;
+    });
   };
 
+  const handleGenerateQrCode = () => {
+    console.log("ReceivePaymentScreen: handleGenerateQrCode called.");
+
+    if (isAnonymousUser) {
+      console.log("ReceivePaymentScreen: Anonymous user detected. Showing restriction modal.");
+      setModal({
+        isOpen: true,
+        title: '機能制限',
+        message: 'QRコードを生成するには、アカウント登録が必要です。',
+        onConfirm: () => {
+          setModal(prev => ({ ...prev, isOpen: false }));
+          setScreen('register');
+        },
+        showCancelButton: false,
+      });
+      return;
+    }
+
+    let finalAmount = showMenu ? totalAmount : parseInt(directAmount, 10);
+    console.log("ReceivePaymentScreen: Final amount calculated:", finalAmount);
+
+    if (isNaN(finalAmount) || finalAmount <= 0) {
+      console.log("ReceivePaymentScreen: Invalid amount. Setting QR error.");
+      setQrError('有効な金額を入力またはメニューを選択してください。');
+      return;
+    }
+
+    let qrPayload = {
+      receiverId: userId,
+      receiverName: userName,
+      amount: finalAmount,
+    };
+    
+    if (showMenu) {
+        const itemsList = Object.keys(selectedItems).map(itemId => {
+            const item = demoMenuItems.find(i => i.id === itemId);
+            return {
+                name: item.name,
+                price: item.price,
+                quantity: selectedItems[itemId],
+            };
+        });
+        qrPayload.items = itemsList;
+    }
+    console.log("ReceivePaymentScreen: QR Payload:", qrPayload);
+
+    try {
+      const payloadString = JSON.stringify(qrPayload);
+      console.log("ReceivePaymentScreen: Payload stringified:", payloadString);
+      
+      const encoder = new TextEncoder();
+      const encodedBytes = encoder.encode(payloadString);
+      const encodedPayload = btoa(String.fromCharCode(...encodedBytes));
+      console.log("ReceivePaymentScreen: Payload encoded to Base64:", encodedPayload);
+
+      setQrData(encodedPayload);
+      setQrError('');
+      setIsQrGenerated(true); 
+      console.log("ReceivePaymentScreen: setQrData and setIsQrGenerated(true) called.");
+    } catch (error) {
+      console.error("QR Code generation failed:", error);
+      setQrError(`QRコードの生成に失敗しました: ${error.message || error.toString()}`);
+      setIsQrGenerated(false);
+    }
+  };
+
+  const handleCopyQrData = () => {
+    if (qrData) {
+      navigator.clipboard.writeText(qrData).then(() => {
+        setModal({
+          isOpen: true,
+          title: 'コピー完了',
+          message: 'QRコードのデータがクリップボードにコピーされました。',
+          onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
+          showCancelButton: false,
+        });
+      }).catch(err => {
+        console.error("Failed to copy QR data to clipboard:", err);
+        setModal({
+          isOpen: true,
+          title: 'コピー失敗',
+          message: 'QRコードのデータのコピーに失敗しました。お手数ですが、手動でコピーしてください。',
+          onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
+          showCancelButton: false,
+        });
+      });
+    } else {
+      setModal({
+        isOpen: true,
+        title: 'コピー失敗',
+        message: 'コピーするQRデータがありません。',
+        onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
+        showCancelButton: false,
+      });
+    }
+  };
+
+  const handleDownloadQrCode = () => {
+    if (qrCanvasRef.current && isQrGenerated) {
+      const url = qrCanvasRef.current.toDataURL("image/png");
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `remat_qr_code_${new Date().getTime()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      setModal({
+        isOpen: true,
+        title: 'ダウンロード完了',
+        message: 'QRコード画像をダウンロードしました。',
+        onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
+        showCancelButton: false,
+      });
+    } else {
+      setModal({
+        isOpen: true,
+        title: 'エラー',
+        message: 'QRコードの画像をダウンロードできませんでした。',
+        onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
+        showCancelButton: false,
+      });
+    }
+  };
 
   return (
-    <div className="p-4 text-white text-center flex flex-col items-center justify-center min-h-[calc(100vh-120px)] font-inter bg-gray-900">
-      <h2 className="text-3xl font-bold mb-6 animate-fade-in-up">QRコードで支払いを受け取る</h2>
+    <div className="p-4 text-white text-center flex flex-col items-center font-inter animate-fade-in">
+      <h2 className="text-3xl font-bold mb-6">QRコードで受け取る</h2>
 
-      <div className="bg-gray-800 rounded-xl shadow-lg p-6 w-full max-w-sm mb-6 animate-slide-in-right">
-        <p className="text-gray-300 text-lg mb-2">あなたのRe-Mat ID</p>
-        <p className="text-white text-xl font-bold break-all mb-4">{userId || '未取得'}</p>
-
-        <input
-          type="number"
-          value={amount}
-          onChange={(e) => {
-            setAmount(e.target.value);
-            setQrError(''); // 入力変更でエラーをクリア
-          }}
-          onBlur={generateQrCodeData} // 入力欄からフォーカスが外れたらQRコードを更新
-          placeholder="金額を入力 (任意)"
-          className="text-black text-center text-2xl font-bold w-full p-3 rounded-lg mb-4 bg-gray-100 focus:ring-2 focus:ring-blue-500 transition-all duration-200"
-          inputMode="numeric"
-          pattern="[0-9]*"
-        />
-
-        {qrError && (
-          <p className="text-red-400 mt-2 text-sm animate-pulse">{qrError}</p>
-        )}
-        
-        {/* テスト用QRコード生成ボタン */}
-        <button
-          onClick={() => {
-            // テスト用QRコードもBase64エンコード
-            const testData = JSON.stringify({receiverId: "TEST_ID", receiverName: "テストユーザー", amount: 123});
-            setQrData(btoa(unescape(encodeURIComponent(testData))));
-            setQrError('');
-            setAmount(''); // 金額入力欄をクリア
-          }}
-          className="mt-4 bg-blue-500 text-white px-4 py-2 rounded-full text-sm font-semibold shadow-md hover:bg-blue-600 transition-all duration-300 transform active:scale-95"
-        >
-          テスト用QRコードを生成
-        </button>
-
-      </div>
-
-      {/* QRコードに埋め込むデータ文字列をデバッグ表示 */}
-      {qrData && (
-        <div className="bg-gray-700 text-white p-3 rounded-lg text-sm mb-4 w-full max-w-sm break-all">
-          <p className="font-bold mb-1">QR埋め込みデータ (Base64エンコード済み):</p>
-          <p className="text-gray-300 select-all">{qrData}</p>
+      {isAnonymousUser && (
+        <div className="bg-yellow-600 rounded-xl p-4 mb-4 w-full max-w-md text-sm">
+          <p>ゲストユーザーはQRコードを生成できません。</p>
+          <p>アカウントを登録して、この機能をご利用ください。</p>
         </div>
       )}
 
-      <div className="bg-white p-4 rounded-xl shadow-lg mb-6 animate-bounce-in">
-        {qrData ? (
-          <QrCodeSvg text={qrData} size={256} setModal={setModal} /> 
+      {/* QRコード表示エリア */}
+      {/* 親要素は中央寄せとレスポンシブ性を保ち、内側のdivでQRコードの固定サイズとパディングを管理する */}
+      <div className={`relative mb-6 w-full max-w-sm flex items-center justify-center animate-slide-in-right ${isAnonymousUser ? 'opacity-50' : ''} mx-auto`}>
+        {/* このdivがQRコードの表示領域と背景、パディングを定義する */}
+        {/* QRコード(256px) + パディング(24px*2) = 304px */}
+        <div className="relative bg-gray-700 rounded-lg p-6 flex items-center justify-center" style={{ width: '304px', height: '304px' }}>
+          {isQrGenerated ? (
+            // QRiousはcanvasに直接描画するため、canvas要素を配置
+            <canvas ref={qrCanvasRef} width="300" height="300" className="rounded-lg block"></canvas>
+          ) : (
+            // QRコードが生成されていない場合のプレースホルダー
+            <div className="w-64 h-64 bg-gray-600 rounded-lg flex items-center justify-center">
+              <span className="text-gray-400 text-lg">QRコードがここに表示されます</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className={`w-full max-w-sm mb-6 ${isAnonymousUser ? 'opacity-50' : ''}`}>
+        {/* メニュー切り替えボタン */}
+        <div className="flex justify-center mb-4">
+          <button
+            onClick={() => setShowMenu(true)}
+            className={`px-4 py-2 rounded-l-full text-sm font-semibold transition-all duration-300 ${showMenu ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300'}`}
+          >
+            メニューから選択
+          </button>
+          <button
+            onClick={() => setShowMenu(false)}
+            className={`px-4 py-2 rounded-r-full text-sm font-semibold transition-all duration-300 ${!showMenu ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300'}`}
+          >
+            金額を直接入力
+          </button>
+        </div>
+
+        {showMenu ? (
+          // メニュー選択モード
+          <div className="bg-gray-800 p-4 rounded-xl shadow-lg">
+            <h3 className="text-lg font-bold mb-3 text-blue-300">メニュー</h3>
+            {demoMenuItems.map(item => (
+              <div
+                key={item.id}
+                onClick={() => handleToggleItem(item.id)}
+                className={`flex items-center justify-between p-3 rounded-lg mb-2 cursor-pointer transition-colors duration-200
+                  ${selectedItems[item.id] ? 'bg-green-600' : 'bg-gray-700 hover:bg-gray-600'}`}
+              >
+                <span className="text-sm font-semibold">{item.name}</span>
+                <span className="text-sm">¥{item.price.toLocaleString()}</span>
+              </div>
+            ))}
+            <hr className="border-gray-600 my-4" />
+            <div className="flex justify-between items-center text-xl font-bold">
+              <span>合計金額</span>
+              <span>¥{totalAmount.toLocaleString()}</span>
+            </div>
+          </div>
         ) : (
-          <div className="w-64 h-64 flex items-center justify-center bg-gray-200 rounded-lg text-gray-500">
-            QRコードを生成中...
+          // 金額直接入力モード
+          <div className="bg-gray-800 p-4 rounded-xl shadow-lg">
+            <h3 className="text-lg font-bold mb-3 text-blue-300">金額を直接入力</h3>
+            <input
+              type="number"
+              value={directAmount}
+              onChange={(e) => {
+                setDirectAmount(e.target.value);
+                setQrError('');
+              }}
+              placeholder="¥"
+              className="w-full p-3 rounded-lg text-black text-2xl font-bold text-center mb-4 bg-gray-100"
+              disabled={isAnonymousUser}
+            />
           </div>
         )}
       </div>
 
-      <button
-        onClick={() => setScreen('home')}
-        className="bg-gray-600 text-white px-8 py-3 rounded-full text-lg font-semibold shadow-md hover:bg-gray-700 transition-all duration-300 transform hover:scale-105"
-      >
-        ホームに戻る
-      </button>
+      {qrError && <p className="text-red-400 mb-4">{qrError}</p>}
+
+      {/* アクションボタン */}
+      <div className={`w-full max-w-sm flex flex-col space-y-4 ${isAnonymousUser ? 'opacity-50' : ''}`}>
+        <button
+          onClick={handleGenerateQrCode}
+          className="bg-green-600 hover:bg-green-700 text-white py-3 px-6 rounded-full font-bold shadow-lg transition-all duration-300 transform active:scale-95"
+          disabled={isAnonymousUser}
+        >
+          QRコードを生成
+        </button>
+        {isQrGenerated && (
+          <>
+            <button
+              onClick={handleCopyQrData}
+              className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-full font-bold shadow-lg transition-all duration-300 transform active:scale-95"
+            >
+              QRデータをコピー
+            </button>
+            <button
+              onClick={handleDownloadQrCode}
+              className="bg-purple-600 hover:bg-purple-700 text-white py-3 px-6 rounded-full font-bold shadow-lg transition-all duration-300 transform active:scale-95"
+            >
+              QRコードをダウンロード
+            </button>
+          </>
+        )}
+        <button
+          onClick={() => setScreen('home')}
+          className="bg-gray-600 hover:bg-gray-700 text-white py-3 px-6 rounded-full font-bold shadow-lg transition-all duration-300 transform active:scale-95"
+        >
+          戻る
+        </button>
+      </div>
     </div>
   );
 };

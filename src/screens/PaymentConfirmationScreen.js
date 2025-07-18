@@ -18,14 +18,15 @@ export default function PaymentConfirmationScreen({
   amount,
   balance,
   storeId,
-  onConfirmPayment = () => { console.warn('onConfirmPayment is not provided'); }, // ★修正: デフォルトプロップを追加★
+  onConfirmPayment = () => { console.warn('onConfirmPayment is not provided'); },
   onCancelPayment,
   isLoading,
-  setModal // App.jsから渡されるsetModal
+  setModal
 }) {
-  // storeIdから店舗名とIDを抽出
+  // storeIdから店舗名、ID、そして商品リストを抽出
   const receiverId = storeId?.id || '不明';
   const storeName = storeId?.name || '不明な店舗';
+  const items = storeId?.items || null; // ★追加: 商品リストを抽出★
 
   // 支払い確定ボタンがクリックされた時のハンドラ
   const handleConfirmClick = () => {
@@ -43,19 +44,39 @@ export default function PaymentConfirmationScreen({
     onCancelPayment();
   };
 
-  // モーダルに表示するメッセージを整形
-  const modalMessage = `以下の内容で支払いを実行します。\n\n店舗: ${storeName}\n金額: ¥${amount ? amount.toLocaleString() : '0'}\n現在の残高: ¥${balance ? balance.toLocaleString() : '0'}`;
-
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-4">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-4 font-inter">
       <h2 className="text-3xl font-bold mb-6 text-green-400">支払い確認</h2>
 
       {/* 支払い詳細の表示 */}
-      <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-sm mb-8 text-center animate-fade-in-up">
-        <p className="text-xl font-semibold mb-4">店舗: {storeName}</p>
-        <p className="text-4xl font-extrabold text-white mb-4">¥{amount ? amount.toLocaleString() : '0'}</p>
-        <p className="text-lg text-gray-300">現在の残高: ¥{balance ? balance.toLocaleString() : '0'}</p>
-        <p className="text-sm text-gray-500 mt-2">受取人ID: {receiverId}</p>
+      <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-sm mb-8 animate-fade-in-up">
+        <div className="text-center">
+          <p className="text-xl font-semibold mb-2">店舗: {storeName}</p>
+          <p className="text-sm text-gray-500 mt-2">受取人ID: {receiverId}</p>
+        </div>
+
+        <hr className="border-gray-700 my-4" />
+
+        {/* ★修正: 商品リストまたは合計金額を表示★ */}
+        {items && items.length > 0 ? (
+          <div>
+            <h4 className="text-lg font-bold mb-2 text-gray-300">注文内容</h4>
+            <ul className="space-y-2">
+              {items.map((item, index) => (
+                <li key={index} className="flex justify-between text-base">
+                  <span className="text-gray-200">{item.name} <span className="text-gray-400">({item.quantity})</span></span>
+                  <span className="font-semibold text-white">¥{item.price.toLocaleString()}</span>
+                </li>
+              ))}
+            </ul>
+            <hr className="border-gray-700 my-4" />
+          </div>
+        ) : (
+          <p className="text-xl text-gray-300 mb-2 text-center">支払い金額</p>
+        )}
+
+        <p className="text-4xl font-extrabold text-white text-center">¥{amount ? amount.toLocaleString() : '0'}</p>
+        <p className="text-lg text-gray-300 mt-4 text-center">現在の残高: ¥{balance ? balance.toLocaleString() : '0'}</p>
       </div>
 
       {/* 確認ボタンとキャンセルボタン */}
@@ -82,14 +103,6 @@ export default function PaymentConfirmationScreen({
           <p className="text-lg text-gray-400">処理中...</p>
         </div>
       )}
-
-      {/* CustomModal は App.js で管理されているため、ここでは直接レンダリングしない */}
-      {/* ただし、この画面の情報を元にApp.jsのモーダルをトリガーするロジックは必要 */}
-      {/* App.jsのsetModalをPaymentConfirmationScreenに渡しているので、
-          PaymentConfirmationScreenがCustomModalを直接表示する代わりに、
-          App.jsのmodalステートを更新して表示を制御します。
-          このコンポーネント自体がモーダルとして使われる場合は、CustomModalは不要です。
-      */}
     </div>
   );
 }

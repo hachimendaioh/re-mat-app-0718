@@ -48,7 +48,8 @@ export default function ReMatApp() {
   const [storeLogo, setStoreLogo] = useState(null);
   const [chargeAmount, setChargeAmount] = useState('');
   const [scannedAmount, setScannedAmount] = useState(null);
-  const [scannedStoreId, setScannedStoreId] = useState(null);
+  // ★修正: scannedStoreIdの初期値をオブジェクトに変更★
+  const [scannedStoreId, setScannedStoreId] = useState({ id: null, name: null, items: null });
   const [scanInputAmount, setScanInputAmount] = useState('');
   const [scanError, setScanError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -124,7 +125,7 @@ export default function ReMatApp() {
   }, [setProfileImage]);
 
 
-  const handleStoreLogoUpload = (event) => {
+  const handleStoreLogoUpload = useCallback((event) => { // useCallbackでラップ
     const file = event.target.files[0];
     if (file) {
       const reader = new FileReader();
@@ -133,7 +134,7 @@ export default function ReMatApp() {
       };
       reader.readAsDataURL(file);
     }
-  };
+  }, []); // 依存配列は空でOK、setStoreLogoはuseStateのセッターなので安定
 
   // handleCharge関数。確認モーダルを追加
   // selectedMethod 引数を追加
@@ -313,24 +314,24 @@ export default function ReMatApp() {
       });
       return;
     }
-
+    
     // scannedStoreIdがオブジェクトの場合、receiverIdとreceiverNameを抽出
-    const receiverId = typeof scannedStoreId === 'object' && scannedStoreId?.id ? scannedStoreId.id : null;
-    const receiverName = typeof scannedStoreId === 'object' && scannedStoreId?.name ? scannedStoreId.name : null;
+    const receiverId = scannedStoreId?.id || null;
+    const receiverName = scannedStoreId?.name || null;
+    const items = scannedStoreId?.items || null; // ★追加: 商品リストを抽出★
 
     console.log("confirmPayment: receiverId =", receiverId);
     console.log("confirmPayment: receiverName =", receiverName);
+    console.log("confirmPayment: items =", items); // ★追加ログ: itemsの内容を確認★
 
     try {
       // Functions インスタンスを取得
       const functionsInstance = getFunctions(firebaseApp);
-      console.log("confirmPayment: Functions Instance:", functionsInstance); // 追加ログ
+      console.log("confirmPayment: Functions Instance:", functionsInstance);
 
       // processPayment Callable Function の参照を作成
-      // 関数名 ('processPayment') とリージョン ('us-central1') は、
-      // デプロイした Cloud Function と正確に一致している必要があります。
       const callProcessPayment = httpsCallable(functionsInstance, 'processPayment');
-      console.log("confirmPayment: callProcessPayment Callable:", callProcessPayment); // 追加ログ
+      console.log("confirmPayment: callProcessPayment Callable:", callProcessPayment);
 
       console.log("Cloud Function 'processPayment' を呼び出し中...");
 
@@ -339,21 +340,18 @@ export default function ReMatApp() {
         receiverId: receiverId,
         amount: paymentAmount,
         senderName: userName, // 現在のユーザー名（通知用）
-        receiverName: receiverName // 受取人の名前（通知用）
+        receiverName: receiverName, // 受取人の名前（通知用）
+        items: items // ★追加: 商品リストをペイロードに含める★
       };
-      console.log("confirmPayment: Calling Cloud Function with data:", callData); // 追加ログ
+      console.log("confirmPayment: Calling Cloud Function with data:", callData);
 
       const result = await callProcessPayment(callData);
 
       console.log('Cloud Function 呼び出し成功:', result.data);
 
-      // Functionsからの結果に基づいてUIを更新
-      // Cloud Function 側で残高やポイントが更新されるため、ここではstateを直接更新しない
-      // 必要であれば、Functions からの最新残高やポイントを受け取ってstateを更新するロジックを追加
-      // 例: setBalance(result.data.newSenderBalance); setPoints(result.data.newSenderPoints);
-
       setScannedAmount(null);
-      setScannedStoreId(null);
+      // ★修正: scannedStoreIdの状態を初期値にリセット★
+      setScannedStoreId({ id: null, name: null, items: null });
       setScanInputAmount('');
       setLastTransactionDetails({ type: 'payment', amount: paymentAmount });
       setScanMode('initial');
@@ -366,15 +364,11 @@ export default function ReMatApp() {
 
       let errorMessage = '支払い処理中にエラーが発生しました。';
       if (error.code) {
-        // Callable Function からの HttpsError
         errorMessage = `支払い失敗: ${error.message || '不明なエラー'}`;
         if (error.details) {
-          // Functions 側でエラー詳細が提供されている場合
           console.error("Functions Error Details:", error.details);
-          // errorMessage += `\n詳細: ${JSON.stringify(error.details)}`; // 必要であれば詳細も表示
         }
       } else {
-        // その他のネットワークエラーなど
         errorMessage += `\n詳細: ${error.message || error.toString()}`;
       }
 
@@ -387,7 +381,7 @@ export default function ReMatApp() {
       });
       setToast({ message: `支払い失敗: ${error.message || '不明なエラー'}`, type: 'error' });
     }
-  }, [balance, userId, db, appId, setModal, resetModal, setToast, setScreen, setScannedAmount, setScannedStoreId, setScanInputAmount, setLastTransactionDetails, setScanMode, userName, setBalance, setPoints, auth, firebaseApp]);
+  }, [balance, userId, db, appId, setModal, resetModal, setToast, setScreen, setScannedAmount, scannedStoreId, setScanInputAmount, setLastTransactionDetails, setScanMode, userName, setBalance, setPoints, auth, firebaseApp]);
 
   // handleNotificationRead と handleMarkAllNotificationsRead は変更なし
   const handleNotificationRead = useCallback(async (id) => {
@@ -473,7 +467,7 @@ export default function ReMatApp() {
   // PaymentConfirmationScreen からキャンセルされた場合
   const handlePaymentCancel = useCallback(() => {
     setScannedAmount(null);
-    setScannedStoreId(null);
+    setScannedStoreId({ id: null, name: null, items: null });
     setScanInputAmount('');
     setScreen('スキャン');
     resetModal();
@@ -614,7 +608,7 @@ export default function ReMatApp() {
             <PaymentConfirmationScreen
               amount={scannedAmount}
               balance={balance}
-              storeId={scannedStoreId}
+              storeId={scannedStoreId} // ★修正: scannedStoreIdをそのまま渡す★
               onConfirmPayment={(storeNameFromConfirmation) => confirmPayment(scannedAmount, storeNameFromConfirmation)}
               onCancelPayment={handlePaymentCancel}
               isLoading={modal.isOpen && modal.title === '支払い中'}
@@ -739,6 +733,10 @@ export default function ReMatApp() {
               setUserName={setUserName} // setUserNameを渡す
               profileImage={profileImage}
               handleProfileImageUpload={handleProfileImageUpload}
+              isStoreMode={isStoreMode} // isStoreModeを渡す
+              setIsStoreMode={setIsStoreMode} // setIsStoreModeを渡す
+              storeLogo={storeLogo} // storeLogoを渡す
+              handleStoreLogoUpload={handleStoreLogoUpload} // ★追加: handleStoreLogoUploadを渡す★
               setScreen={setScreen}
               setModal={setModal}
               setToast={setToast}
@@ -768,14 +766,13 @@ export default function ReMatApp() {
               />
             </div>
           )}
-          {screen === '受け取る' && ( // ReceivePaymentScreenをレンダリング
+          {/* ★修正: '受け取る' 画面の条件付きレンダリングを追加★ */}
+          {screen === '受け取る' && (
             <ReceivePaymentScreen
               userId={userId}
               userName={userName}
               setScreen={setScreen}
               setModal={setModal}
-              notifications={notifications}
-              handleNotificationRead={handleNotificationRead}
             />
           )}
           {screen === 'wallet' && ( // WalletScreenのレンダリング

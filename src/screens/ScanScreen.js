@@ -97,121 +97,97 @@ const ScanScreen = ({
 
 
   const onResult = useCallback((result, error) => {
-    // ★追加ログ1: onResultが呼ばれたことと、受け取ったresultの内容を確認★
     console.log("ScanScreen Debug: onResult called. result:", result, "error:", error);
-
+    
     if (result && result.text) { 
       let rawScannedData = result.text;
-      let parsedAmount = NaN;
-      let parsedStoreId = null; 
+      let parsedAmount = null;
       let parsedReceiverId = null; 
       let parsedReceiverName = null; 
+      let parsedItems = null; // ★追加: 複数商品情報を保持する変数
       let displayData = rawScannedData;
 
-      // ★追加ログ2: デコード前の生データを確認★
       console.log("ScanScreen Debug: Raw scanned data:", rawScannedData);
 
       try {
         const decodedData = new TextDecoder().decode(Uint8Array.from(atob(rawScannedData), c => c.charCodeAt(0)));
-        // ★追加ログ3: Base64デコード後のデータを確認★
         console.log("ScanScreen Debug: Decoded data (after atob):", decodedData);
 
         const jsonData = JSON.parse(decodedData);
-        // ★追加ログ4: JSONパース後のデータを確認★
         console.log("ScanScreen Debug: Parsed JSON data:", jsonData);
 
         if (jsonData && jsonData.receiverId) {
-          // ★追加ログ5: receiverIdパスに入ったことを確認★
           console.log("ScanScreen Debug: Data contains receiverId.");
           parsedReceiverId = jsonData.receiverId;
           parsedReceiverName = jsonData.receiverName || '不明な受取人';
-          if (typeof jsonData.amount === 'number' && jsonData.amount > 0) {
+
+          // ★修正: 金額の代わりに items をチェックし、合計金額を計算★
+          if (jsonData.items && Array.isArray(jsonData.items)) {
+            parsedItems = jsonData.items;
+            parsedAmount = parsedItems.reduce((total, item) => {
+              // price と quantity が有効な数値であることを確認
+              const price = typeof item.price === 'number' && item.price > 0 ? item.price : 0;
+              const quantity = typeof item.quantity === 'number' && item.quantity > 0 ? item.quantity : 1;
+              return total + (price * quantity);
+            }, 0);
+            console.log("ScanScreen Debug: Valid items found. Calculated total amount:", parsedAmount);
+          } else if (typeof jsonData.amount === 'number' && jsonData.amount > 0) {
+            // 後方互換性のため、もし `items` がなく `amount` があればそれを金額とする
             parsedAmount = jsonData.amount;
-            // ★追加ログ6: 金額が有効であることを確認★
-            console.log("ScanScreen Debug: Valid amount found in receiverId path:", parsedAmount);
-          } else {
-            // ★追加ログ7: receiverIdはあるが、金額が無効な場合★
-            console.log("ScanScreen Debug: ReceiverId found, but amount is invalid or missing:", jsonData.amount);
+            console.log("ScanScreen Debug: No items found, but valid amount found:", parsedAmount);
           }
-          displayData = `受取人: ${parsedReceiverName} (ID: ${parsedReceiverId}), 金額: ${parsedAmount > 0 ? parsedAmount.toLocaleString() + '円' : '未指定'}`;
           
+          if (!parsedAmount || parsedAmount <= 0) {
+             console.log("ScanScreen Debug: ReceiverId found, but amount is invalid or missing.");
+             throw new Error("Invalid amount or items in QR code data."); // エラーを投げて、catchブロックで処理
+          }
+
           if (parsedReceiverId) {
-            // ★追加ログ8: receiverIdが最終的に有効と判断され、画面遷移・状態更新が試みられる直前★
             console.log("ScanScreen Debug: Initiating screen transition to payment_confirmation with:", {
               scannedAmount: parsedAmount,
-              scanInputAmount: String(parsedAmount),
-              scannedStoreId: { id: parsedReceiverId, name: parsedReceiverName }
+              scannedStoreId: { id: parsedReceiverId, name: parsedReceiverName, items: parsedItems } // ★修正: items を追加★
             });
 
-            if (typeof setScannedAmount === 'function') setScannedAmount(parsedAmount > 0 ? parsedAmount : null);
-            if (typeof setScanInputAmount === 'function') setScanInputAmount(parsedAmount > 0 ? String(parsedAmount) : '');
-            if (typeof setScannedStoreId === 'function') setScannedStoreId({ id: parsedReceiverId, name: parsedReceiverName }); // ★ここが以前修正した点★
+            if (typeof setScannedAmount === 'function') setScannedAmount(parsedAmount);
+            if (typeof setScanInputAmount === 'function') setScanInputAmount(String(parsedAmount));
+            if (typeof setScannedStoreId === 'function') setScannedStoreId({ id: parsedReceiverId, name: parsedReceiverName, items: parsedItems });
             if (typeof setScanMode === 'function') setScanMode('initial');
             if (typeof setScanError === 'function') setScanError('');
             if (typeof setScreen === 'function') setScreen('payment_confirmation');
-            // ★追加ログ9: 成功パス終了★
             console.log("ScanScreen Debug: Successful QR code processing (receiverId path).");
             return;
-          } else {
-             // ★追加ログ10: receiverIdパスに入ったが、parsedReceiverIdが無効と判断された場合（通常は発生しないはず）★
-             console.log("ScanScreen Debug: parsedReceiverId was null/invalid after receiverId path logic.");
           }
         } 
-        else if (jsonData && typeof jsonData.amount === 'number' && jsonData.amount > 0) {
-          // ★追加ログ11: 金額のみのQRコードパスに入ったことを確認★
-          console.log("ScanScreen Debug: Data contains only valid amount.");
-          parsedAmount = jsonData.amount;
-          parsedStoreId = jsonData.storeId || null;
-          displayData = JSON.stringify(jsonData);
-        } else {
-          // ★追加ログ12: JSONだが、金額もreceiverIdもない場合★
-          console.log("ScanScreen Debug: JSON data has no valid amount or receiverId. Attempting numeric parse from decodedData.");
-          const cleanedData = decodedData.replace(/[^0-9]/g, '').trim();
-          parsedAmount = parseInt(cleanedData, 10);
-          displayData = decodedData;
+        else {
+          // receiverIdがない場合、金額のみのQRコードとして処理
+          console.log("ScanScreen Debug: Data does not contain receiverId. Attempting to parse as single amount.");
+          if (typeof jsonData.amount === 'number' && jsonData.amount > 0) {
+            parsedAmount = jsonData.amount;
+            parsedReceiverName = jsonData.storeName || '不明な店舗'; // 後方互換性
+          } else {
+            throw new Error("Invalid amount in JSON data.");
+          }
         }
       } catch (decodeOrJsonError) {
-        // ★追加ログ13: Base64デコードまたはJSONパース失敗時★
         console.log("ScanScreen Debug: Decode or JSON parse error:", decodeOrJsonError);
-        try {
-          const originalJsonData = JSON.parse(rawScannedData);
-          if (originalJsonData && typeof originalJsonData.amount === 'number' && originalJsonData.amount > 0) {
-            // ★追加ログ14: オリジナルデータが直接JSONで有効な金額の場合★
-            console.log("ScanScreen Debug: Raw data is direct JSON with valid amount.");
-            parsedAmount = originalJsonData.amount;
-            parsedStoreId = originalJsonData.storeId || null;
-            displayData = rawScannedData;
-          } else {
-             // ★追加ログ15: オリジナルデータもJSONではない、または金額なしの場合★
-             console.log("ScanScreen Debug: Raw data is not direct JSON or has no valid amount. Attempting numeric parse from rawScannedData.");
-             const cleanedData = rawScannedData.replace(/[^0-9]/g, '').trim();
-             parsedAmount = parseInt(cleanedData, 10);
-             displayData = rawScannedData;
-          }
-        } catch (originalJsonError) {
-          // ★追加ログ16: オリジナルデータもJSONパース失敗時★
-          console.log("ScanScreen Debug: Original JSON parse error:", originalJsonError);
-          const cleanedData = rawScannedData.replace(/[^0-9]/g, '').trim();
-          parsedAmount = parseInt(cleanedData, 10);
-          displayData = rawScannedData;
-        }
+        // JSONとしてパースできなかった場合は、文字列として金額を抽出
+        const cleanedData = rawScannedData.replace(/[^0-9]/g, '').trim();
+        parsedAmount = parseInt(cleanedData, 10);
+        parsedReceiverName = '不明な店舗';
+        displayData = rawScannedData;
       }
 
-      // ★追加ログ17: 最終的なparsedAmountの評価★
       console.log("ScanScreen Debug: Final parsedAmount:", parsedAmount);
 
       if (!isNaN(parsedAmount) && parsedAmount > 0) {
-        // ★追加ログ18: 金額が有効と判断されたが、receiverIdパスを通らなかった場合（金額のみQRなど）★
         console.log("ScanScreen Debug: Valid amount found (non-receiverId path). Initiating transition.");
         if (typeof setScannedAmount === 'function') setScannedAmount(parsedAmount);
         if (typeof setScanInputAmount === 'function') setScanInputAmount(String(parsedAmount));
-        if (typeof setScannedStoreId === 'function') setScannedStoreId(parsedStoreId);
-        
+        if (typeof setScannedStoreId === 'function') setScannedStoreId({ id: null, name: parsedReceiverName, items: null });
         if (typeof setScanMode === 'function') setScanMode('initial');
         if (typeof setScanError === 'function') setScanError('');
         if (typeof setScreen === 'function') setScreen('payment_confirmation');
       } else {
-        // ★追加ログ19: 金額が無効、または解析失敗と判断された場合（「スキャン失敗」モーダルが表示されるパス）★
         console.log("ScanScreen Debug: Invalid QR code data or amount. Showing error modal.");
         if (typeof setScanError === 'function') setScanError("無効なQRコードデータです。有効な金額または受取人情報が含まれていません。");
         if (typeof setScanMode === 'function') setScanMode('initial');
@@ -226,7 +202,6 @@ const ScanScreen = ({
         }
       }
     } else { 
-      // ★追加ログ20: resultまたはresult.textがなかった場合（「スキャン失敗」モーダルが表示されるパス）★
       console.log("ScanScreen Debug: No result or result.text found. Showing scan failed modal.");
       if (typeof setScanError === 'function') setScanError("QRコードが検出されませんでした。またはデコードに失敗しました。");
       if (typeof setScanMode === 'function') setScanMode('initial');
@@ -242,10 +217,10 @@ const ScanScreen = ({
     }
 
     if (error) {
-      // ★追加ログ21: onResultにエラーオブジェクトが渡された場合★
       console.error("ScanScreen Debug: QR code scan result processing error (onResult error object):", error);
     }
   }, [setScannedAmount, setScanInputAmount, setScanMode, setScreen, setScanError, setModal, setScannedStoreId, balance]);
+
 
   const onError = useCallback((error) => {
     console.error("ScanScreen received error (onError callback):", error);
