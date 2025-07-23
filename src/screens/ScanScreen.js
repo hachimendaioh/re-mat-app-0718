@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import QrCodeScanner from './QrCodeScanner'; // QrCodeScanner.jsがsrc/screensフォルダにあるため、パスは './QrCodeScanner' で正しいです。
+import QrCodeScanner from './QrCodeScanner';
+import { doc, getDoc } from 'firebase/firestore'; // Firestoreからドキュメントを取得するために追加
 
 const ScanScreen = ({
   scannedAmount,
@@ -14,34 +15,32 @@ const ScanScreen = ({
   setScanMode,
   setModal,
   setScreen,
-  setScannedStoreId // スキャンで店舗IDも設定できるように
+  setScannedStoreId,
+  db, // Firestoreインスタンスを受け取る
+  appId, // アプリIDを受け取る
 }) => {
 
-  // QrCodeScannerコンポーネントのrefを保持するためのref
   const qrScannerRef = useRef(null); 
 
   useEffect(() => {
-    // 各セッターが関数であることを確認してから呼び出す
     if (typeof setScannedAmount === 'function') setScannedAmount(null);
     if (typeof setScanInputAmount === 'function') setScanInputAmount('');
     if (typeof setScanError === 'function') setScanError('');
-    if (typeof setScannedStoreId === 'function') setScannedStoreId(null); // 受取機能のために初期化
+    if (typeof setScannedStoreId === 'function') setScannedStoreId(null);
 
-    // コンポーネントがアンマウントされるか、scanModeが変更されたときにカメラを停止するクリーンアップ
     return () => {
       if (qrScannerRef.current && qrScannerRef.current.stopCamera) {
         qrScannerRef.current.stopCamera();
       }
     };
-  }, [setScannedAmount, setScanInputAmount, setScanError, setScannedStoreId, scanMode]); // scanModeを依存配列に追加
+  }, [setScannedAmount, setScanInputAmount, setScanError, setScannedStoreId, scanMode]);
 
-  // カメラ映像をキャプチャして新しいタブで開く関数
   const handleCaptureImage = useCallback(() => {
     if (qrScannerRef.current && qrScannerRef.current.getCanvas) {
       const canvas = qrScannerRef.current.getCanvas();
       if (canvas) {
         try {
-          const imageDataUrl = canvas.toDataURL('image/png'); // キャンバスの内容を画像データURLとして取得
+          const imageDataUrl = canvas.toDataURL('image/png');
           const newWindow = window.open();
           if (newWindow) {
             newWindow.document.write(`<img src="${imageDataUrl}" alt="Captured Camera Feed" style="max-width: 100%; height: auto;">`);
@@ -96,7 +95,7 @@ const ScanScreen = ({
   }, [setModal]);
 
 
-  const onResult = useCallback((result, error) => {
+  const onResult = useCallback(async (result, error) => {
     console.log("ScanScreen Debug: onResult called. result:", result, "error:", error);
     
     if (result && result.text) { 
@@ -104,14 +103,24 @@ const ScanScreen = ({
       let parsedAmount = null;
       let parsedReceiverId = null; 
       let parsedReceiverName = null; 
-      let parsedItems = null; // ★追加: 複数商品情報を保持する変数
-      let displayData = rawScannedData;
+      let parsedItems = null;
+      let orderId = null; 
+      let displayData = rawScannedData; 
 
       console.log("ScanScreen Debug: Raw scanned data:", rawScannedData);
 
       try {
-        const decodedData = new TextDecoder().decode(Uint8Array.from(atob(rawScannedData), c => c.charCodeAt(0)));
-        console.log("ScanScreen Debug: Decoded data (after atob):", decodedData);
+        let decodedData;
+        try {
+          const binaryString = atob(rawScannedData);
+          const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
+          decodedData = new TextDecoder('utf-8').decode(bytes);
+        } catch (atobError) {
+          console.error("ScanScreen Debug: Base64 decoding or UTF-8 decoding failed:", atobError);
+          decodedData = rawScannedData; 
+        }
+
+        console.log("ScanScreen Debug: Decoded or raw data for JSON parse:", decodedData);
 
         const jsonData = JSON.parse(decodedData);
         console.log("ScanScreen Debug: Parsed JSON data:", jsonData);
@@ -119,38 +128,85 @@ const ScanScreen = ({
         if (jsonData && jsonData.receiverId) {
           console.log("ScanScreen Debug: Data contains receiverId.");
           parsedReceiverId = jsonData.receiverId;
-          parsedReceiverName = jsonData.receiverName || '不明な受取人';
+          parsedReceiverName = jsonData.receiverName || '不明な受取人'; 
+          orderId = jsonData.orderId || null; 
 
-          // ★修正: 金額の代わりに items をチェックし、合計金額を計算★
-          if (jsonData.items && Array.isArray(jsonData.items)) {
-            parsedItems = jsonData.items;
-            parsedAmount = parsedItems.reduce((total, item) => {
-              // price と quantity が有効な数値であることを確認
-              const price = typeof item.price === 'number' && item.price > 0 ? item.price : 0;
-              const quantity = typeof item.quantity === 'number' && item.quantity > 0 ? item.quantity : 1;
-              return total + (price * quantity);
-            }, 0);
-            console.log("ScanScreen Debug: Valid items found. Calculated total amount:", parsedAmount);
-          } else if (typeof jsonData.amount === 'number' && jsonData.amount > 0) {
-            // 後方互換性のため、もし `items` がなく `amount` があればそれを金額とする
-            parsedAmount = jsonData.amount;
-            console.log("ScanScreen Debug: No items found, but valid amount found:", parsedAmount);
+          // orderIdがあればFirestoreから詳細情報を取得
+          if (orderId && db && appId) {
+            console.log("ScanScreen Debug: orderId found. Attempting to fetch order details from Firestore.");
+            const orderDocRef = doc(db, `artifacts/${appId}/orders/${orderId}`);
+            const orderDocSnap = await getDoc(orderDocRef);
+
+            if (orderDocSnap.exists()) {
+              const orderData = orderDocSnap.data();
+              console.log("ScanScreen Debug: Order data fetched from Firestore:", orderData);
+              parsedItems = orderData.items || null;
+              parsedAmount = orderData.amount || 0;
+              parsedReceiverName = orderData.receiverName || parsedReceiverName; 
+            } else {
+              console.warn("ScanScreen Debug: Order document not found for orderId:", orderId);
+              parsedAmount = typeof jsonData.amount === 'number' && jsonData.amount > 0 ? jsonData.amount : 0;
+            }
+          } else {
+            // orderIdがない場合、QRコードに直接含まれるamountとitemsを使用
+            if (jsonData.items && Array.isArray(jsonData.items)) {
+              parsedItems = jsonData.items;
+              parsedAmount = parsedItems.reduce((total, item) => {
+                const price = typeof item.price === 'number' && item.price > 0 ? item.price : 0;
+                const quantity = typeof item.quantity === 'number' && item.quantity > 0 ? item.quantity : 1;
+                return total + (price * quantity);
+              }, 0);
+              console.log("ScanScreen Debug: Valid items found in QR. Calculated total amount:", parsedAmount);
+            } else if (typeof jsonData.amount === 'number' && jsonData.amount > 0) {
+              parsedAmount = jsonData.amount;
+              console.log("ScanScreen Debug: No items in QR, but valid amount found:", parsedAmount);
+            }
+          }
+
+          // receiverIdのuserProfileからstoreNameを取得し、parsedReceiverNameを上書きする
+          if (parsedReceiverId && db && appId) {
+            try {
+              const receiverProfileRef = doc(db, `artifacts/${appId}/users/${parsedReceiverId}/profile/userProfile`);
+              console.log("ScanScreen Debug: Attempting to fetch receiver profile for receiverId:", parsedReceiverId);
+              const receiverProfileSnap = await getDoc(receiverProfileRef);
+              
+              if (receiverProfileSnap.exists()) {
+                const receiverProfileData = receiverProfileSnap.data();
+                console.log("ScanScreen Debug: Receiver profile data exists. isStore:", receiverProfileData.isStore, "storeName:", receiverProfileData.storeName); // ★追加ログ★
+                if (receiverProfileData.isStore && receiverProfileData.storeName) {
+                  console.log("ScanScreen Debug: Receiver is a store. Using storeName:", receiverProfileData.storeName);
+                  parsedReceiverName = receiverProfileData.storeName; // 店舗名を優先
+                } else {
+                  console.log("ScanScreen Debug: Receiver is not a store or storeName not found. Using receiverName from QR/Order.");
+                }
+              } else {
+                console.warn("ScanScreen Debug: Receiver profile document does not exist for receiverId:", parsedReceiverId);
+              }
+            } catch (profileError) {
+              console.error("ScanScreen Debug: Error fetching receiver profile for storeName:", profileError);
+              // プロフィール取得エラー時は、QRコードやOrderから取得したreceiverNameをそのまま使用
+            }
           }
           
           if (!parsedAmount || parsedAmount <= 0) {
              console.log("ScanScreen Debug: ReceiverId found, but amount is invalid or missing.");
-             throw new Error("Invalid amount or items in QR code data."); // エラーを投げて、catchブロックで処理
+             throw new Error("Invalid amount or items in QR code data.");
           }
 
           if (parsedReceiverId) {
             console.log("ScanScreen Debug: Initiating screen transition to payment_confirmation with:", {
               scannedAmount: parsedAmount,
-              scannedStoreId: { id: parsedReceiverId, name: parsedReceiverName, items: parsedItems } // ★修正: items を追加★
+              scannedStoreId: { 
+                id: parsedReceiverId, 
+                name: parsedReceiverName, 
+                items: parsedItems, 
+                orderId: orderId 
+              }
             });
 
             if (typeof setScannedAmount === 'function') setScannedAmount(parsedAmount);
             if (typeof setScanInputAmount === 'function') setScanInputAmount(String(parsedAmount));
-            if (typeof setScannedStoreId === 'function') setScannedStoreId({ id: parsedReceiverId, name: parsedReceiverName, items: parsedItems });
+            if (typeof setScannedStoreId === 'function') setScannedStoreId({ id: parsedReceiverId, name: parsedReceiverName, items: parsedItems, orderId: orderId });
             if (typeof setScanMode === 'function') setScanMode('initial');
             if (typeof setScanError === 'function') setScanError('');
             if (typeof setScreen === 'function') setScreen('payment_confirmation');
@@ -159,18 +215,16 @@ const ScanScreen = ({
           }
         } 
         else {
-          // receiverIdがない場合、金額のみのQRコードとして処理
           console.log("ScanScreen Debug: Data does not contain receiverId. Attempting to parse as single amount.");
           if (typeof jsonData.amount === 'number' && jsonData.amount > 0) {
             parsedAmount = jsonData.amount;
-            parsedReceiverName = jsonData.storeName || '不明な店舗'; // 後方互換性
+            parsedReceiverName = jsonData.storeName || '不明な店舗'; 
           } else {
             throw new Error("Invalid amount in JSON data.");
           }
         }
-      } catch (decodeOrJsonError) {
-        console.log("ScanScreen Debug: Decode or JSON parse error:", decodeOrJsonError);
-        // JSONとしてパースできなかった場合は、文字列として金額を抽出
+      } catch (parseError) {
+        console.log("ScanScreen Debug: JSON parse or data validation error:", parseError);
         const cleanedData = rawScannedData.replace(/[^0-9]/g, '').trim();
         parsedAmount = parseInt(cleanedData, 10);
         parsedReceiverName = '不明な店舗';
@@ -183,7 +237,7 @@ const ScanScreen = ({
         console.log("ScanScreen Debug: Valid amount found (non-receiverId path). Initiating transition.");
         if (typeof setScannedAmount === 'function') setScannedAmount(parsedAmount);
         if (typeof setScanInputAmount === 'function') setScanInputAmount(String(parsedAmount));
-        if (typeof setScannedStoreId === 'function') setScannedStoreId({ id: null, name: parsedReceiverName, items: null });
+        if (typeof setScannedStoreId === 'function') setScannedStoreId({ id: null, name: parsedReceiverName, items: null, orderId: null });
         if (typeof setScanMode === 'function') setScanMode('initial');
         if (typeof setScanError === 'function') setScanError('');
         if (typeof setScreen === 'function') setScreen('payment_confirmation');
@@ -219,8 +273,7 @@ const ScanScreen = ({
     if (error) {
       console.error("ScanScreen Debug: QR code scan result processing error (onResult error object):", error);
     }
-  }, [setScannedAmount, setScanInputAmount, setScanMode, setScreen, setScanError, setModal, setScannedStoreId, balance]);
-
+  }, [setScannedAmount, setScanInputAmount, setScanMode, setScreen, setScanError, setModal, setScannedStoreId, balance, db, appId]);
 
   const onError = useCallback((error) => {
     console.error("ScanScreen received error (onError callback):", error);
@@ -275,7 +328,7 @@ const ScanScreen = ({
   }, [setScanError, setScanMode, setModal]);
 
   return (
-    <div className="p-4 text-white text-center animate-fade-in font-inter">
+    <div className="p-4 text-white text-center flex flex-col items-center font-inter animate-fade-in">
       <h2 className="text-3xl font-bold mb-6">QRコード読み取り</h2>
 
       {scanMode === 'initial' && (
@@ -305,7 +358,7 @@ const ScanScreen = ({
               scanDelay={500}
               videoContainerStyle={{ padding: '0px' }}
               videoStyle={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              isActive={scanMode === 'scanning'} // isActive プロパティを追加
+              isActive={scanMode === 'scanning'}
             />
           </div>
           <p className="text-gray-300 mt-4 text-sm">QRコードをカメラにかざしてください</p>
@@ -341,8 +394,8 @@ const ScanScreen = ({
               if (typeof setScanInputAmount === 'function') setScanInputAmount(e.target.value);
               if (typeof setScanError === 'function') setScanError('');
             }}
-            placeholder="支払い金額を入力"
-            className="text-black text-center text-2xl font-bold w-full p-3 rounded-lg mb-4 bg-gray-100 focus:ring-2 focus:ring-blue-500 transition-all duration-200"
+            placeholder="¥"
+            className="w-full p-3 rounded-lg text-black text-2xl font-bold text-center mb-4 bg-gray-100"
             inputMode="numeric"
             pattern="[0-9]*"
           />

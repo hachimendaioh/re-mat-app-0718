@@ -15,19 +15,18 @@ const initializeFirebase = () => {
   if (typeof __firebase_config !== 'undefined' && __firebase_config) {
     firebaseConfig = JSON.parse(__firebase_config);
   } else {
-    // ローカル開発やFirebase Hostingなど、__firebase_configが提供されない場合のフォールバック設定
-    // TODO: ここにあなたのFirebaseプロジェクトの実際の認証情報（FirebaseコンソールのWebアプリ設定からコピーしたもの）を貼り付けてください。
-    // WARNING: 本番環境ではこのファイルを直接Git管理せず、環境変数などを用いてください。
+    // .env ファイルから環境変数を読み込む
+    // REACT_APP_ プレフィックスが必須です。
     firebaseConfig = {
-      apiKey: "AIzaSyD4Xt7J22K6VCumRthjLA2NfMlST3FZ-X8",
-      authDomain: "re-mat-mvp.firebaseapp.com",
-      projectId: "re-mat-mvp",
-      storageBucket: "re-mat-mvp.firebasestorage.app",
-      messagingSenderId: "697223246661",
-      appId: "1:697223246661:web:b662f5baad71145a37842c",
-      measurementId: "G-JS1FJ3SEWQ"
+      apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+      authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+      projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+      storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+      appId: process.env.REACT_APP_FIREBASE_APP_ID,
+      measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID
     };
-    console.warn("Using fallback firebaseConfig. Please ensure this is correct and replace YOUR_... placeholders.");
+    console.warn("Using Firebase config from .env file. Ensure .env is correctly configured and not committed to Git.");
   }
 
   // Firebaseアプリを初期化

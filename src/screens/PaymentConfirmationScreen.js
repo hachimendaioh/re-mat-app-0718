@@ -8,7 +8,7 @@ import CustomModal from '../components/common/CustomModal'; // CustomModalのパ
  * @param {object} props - コンポーネントのプロパティ
  * @param {number} props.amount - 支払い金額
  * @param {number} props.balance - 現在のユーザー残高
- * @param {object} props.storeId - スキャンされた店舗情報（IDと名前を含むオブジェクト）
+ * @param {object} props.storeId - スキャンされた店舗情報（IDと名前、orderId、itemsを含むオブジェクト）
  * @param {function} props.onConfirmPayment - 支払い確定時に呼び出されるコールバック関数
  * @param {function} props.onCancelPayment - 支払いキャンセル時に呼び出されるコールバック関数
  * @param {boolean} props.isLoading - 支払い処理中かどうかを示すフラグ
@@ -23,10 +23,11 @@ export default function PaymentConfirmationScreen({
   isLoading,
   setModal
 }) {
-  // storeIdから店舗名、ID、そして商品リストを抽出
+  // storeIdから店舗名、ID、そして商品リストとorderIdを抽出
   const receiverId = storeId?.id || '不明';
   const storeName = storeId?.name || '不明な店舗';
-  const items = storeId?.items || null; // ★追加: 商品リストを抽出★
+  const items = storeId?.items || null; // 商品リストを抽出
+  const orderId = storeId?.orderId || null; // ★追加: orderIdを抽出★
 
   // 支払い確定ボタンがクリックされた時のハンドラ
   const handleConfirmClick = () => {
@@ -52,12 +53,12 @@ export default function PaymentConfirmationScreen({
       <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-sm mb-8 animate-fade-in-up">
         <div className="text-center">
           <p className="text-xl font-semibold mb-2">店舗: {storeName}</p>
+          {orderId && <p className="text-sm text-gray-500 mt-2">注文ID: {orderId}</p>} {/* orderIdを表示 */}
           <p className="text-sm text-gray-500 mt-2">受取人ID: {receiverId}</p>
         </div>
 
         <hr className="border-gray-700 my-4" />
 
-        {/* ★修正: 商品リストまたは合計金額を表示★ */}
         {items && items.length > 0 ? (
           <div>
             <h4 className="text-lg font-bold mb-2 text-gray-300">注文内容</h4>

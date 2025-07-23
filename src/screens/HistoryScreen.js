@@ -1,9 +1,16 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react'; // useEffectを追加
 
-const HistoryScreen = ({ history, setModal }) => {
+const HistoryScreen = ({
+  history,
+  setModal,
+  initialSelectedTransactionId, // App.jsから渡される初期選択ID
+  initialSelectedTransactionType, // App.jsから渡される初期選択タイプ
+  setInitialSelectedHistoryTransactionId, // IDをリセットする関数
+  setInitialSelectedHistoryTransactionType // タイプをリセットする関数
+}) => {
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [filterPeriod, setFilterPeriod] = useState('all'); // 'all', '1month', '3months', '1year', 'custom'
-  const [filterType, setFilterType] = useState('all');   // 'all', 'payment', 'charge'
+  const [filterType, setFilterType] = useState('all');   // 'all', 'payment', 'charge', 'receive'
   const [sortOrder, setSortOrder] = useState('newest');  // 'newest', 'oldest', 'amount_desc', 'amount_asc'
   const [startDate, setStartDate] = useState(''); // カスタム期間の開始日 (YYYY-MM-DD)
   const [endDate, setEndDate] = useState('');     // カスタム期間の終了日 (YYYY-MM-DD)
@@ -35,7 +42,11 @@ const HistoryScreen = ({ history, setModal }) => {
           <p className="mb-2"><strong className="text-gray-800">店舗/項目:</strong> {record.store}</p>
           <p className="mb-2"><strong className="text-gray-800">金額:</strong> ¥{record.amount.toLocaleString()}</p>
           <p className="mb-2"><strong className="text-gray-800">日時:</strong> {formatTimestamp(record.timestamp)}</p>
-          <p className="mb-2"><strong className="text-gray-800">種類:</strong> {record.type === 'charge' ? 'チャージ' : '支払い'}</p>
+          <p className="mb-2"><strong className="text-gray-800">種類:</strong> 
+            {record.type === 'charge' ? 'チャージ' :
+             record.type === 'payment' ? '支払い' :
+             record.type === 'receive' ? '受取' : '不明'}
+          </p>
           {record.id && <p className="mb-2 text-sm text-gray-500"><strong>取引ID:</strong> {record.id}</p>}
         </div>
       )
@@ -91,9 +102,9 @@ const HistoryScreen = ({ history, setModal }) => {
       } else if (sortOrder === 'oldest') {
         return dateA.getTime() - dateB.getTime();
       } else if (sortOrder === 'amount_desc') {
-        return Math.abs(b.amount) - Math.abs(a.amount);
+        return (b.type === 'receive' ? b.amount : Math.abs(b.amount)) - (a.type === 'receive' ? a.amount : Math.abs(a.amount));
       } else if (sortOrder === 'amount_asc') {
-        return Math.abs(a.amount) - Math.abs(b.amount);
+        return (a.type === 'receive' ? a.amount : Math.abs(a.amount)) - (b.type === 'receive' ? b.amount : Math.abs(b.amount));
       }
       return 0;
     });
@@ -101,8 +112,24 @@ const HistoryScreen = ({ history, setModal }) => {
     return filtered;
   }, [history, filterType, filterPeriod, sortOrder, startDate, endDate]);
 
+  // ★追加: initialSelectedTransactionIdとinitialSelectedTransactionTypeを監視し、モーダルを開くuseEffect ★
+  useEffect(() => {
+    if (initialSelectedTransactionId && history.length > 0) {
+      const transactionToOpen = history.find(
+        record => record.id === initialSelectedTransactionId && record.type === initialSelectedTransactionType
+      );
+      if (transactionToOpen) {
+        handleItemClick(transactionToOpen);
+      }
+      // モーダル表示後、App.jsのStateをリセット
+      setInitialSelectedHistoryTransactionId(null);
+      setInitialSelectedHistoryTransactionType(null);
+    }
+  }, [initialSelectedTransactionId, initialSelectedTransactionType, history, setInitialSelectedHistoryTransactionId, setInitialSelectedHistoryTransactionType, setModal]);
+
+
   return (
-    <div className="p-4 text-white animate-fade-in font-inter"> {/* font-inter を追加 */}
+    <div className="p-4 text-white animate-fade-in font-inter">
       <h2 className="text-3xl font-bold mb-6 text-center">取引履歴</h2>
 
       {/* フィルタリングとソートのUI */}
@@ -136,6 +163,7 @@ const HistoryScreen = ({ history, setModal }) => {
               <option value="all">全て</option>
               <option value="payment">支払い</option>
               <option value="charge">チャージ</option>
+              <option value="receive">受取</option>
             </select>
           </div>
         </div>
@@ -194,11 +222,16 @@ const HistoryScreen = ({ history, setModal }) => {
               onClick={() => handleItemClick(record)}
             >
               <div>
-                <p className="font-bold text-lg">{record.store}</p>
-                <p className="text-sm text-gray-500">{record.date}</p>
+                <p className="font-bold text-lg">
+                  {record.type === 'receive' ? `受取元: ${record.store}` : record.store}
+                </p>
+                <p className="text-sm text-gray-500">{formatTimestamp(record.timestamp)}</p>
               </div>
-              <span className={`font-bold text-xl ${record.amount < 0 ? "text-red-500" : "text-green-500"}`}>
-                {record.amount.toLocaleString()}円
+              <span className={`font-bold text-xl ${
+                record.type === 'receive' ? 'text-green-500' : 
+                record.amount < 0 ? 'text-red-500' : 'text-green-500' 
+              }`}>
+                {record.type === 'receive' ? '+' : ''}¥{record.amount.toLocaleString()}
               </span>
             </li>
           ))}
