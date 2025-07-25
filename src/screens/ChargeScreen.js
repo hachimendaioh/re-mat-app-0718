@@ -42,40 +42,45 @@ const ChargeScreen = ({ balance, chargeAmount, setChargeAmount, handleCharge, se
   // まだチャージ方法が選択されていない場合、選択肢を表示
   if (!selectedMethod) {
     return (
-      <div className="p-4 text-white text-center animate-fade-in font-inter">
-        <h2 className="text-3xl font-bold mb-6">チャージ方法を選択</h2>
+      // メインコンテナの背景をグラデーションに調整
+      <div className="p-4 text-white text-center animate-fade-in font-inter min-h-screen bg-gradient-to-br from-[#1A032E] to-[#3A0F5B]">
+        {/* タイトル色の調整 */}
+        <h2 className="text-3xl font-bold mb-6 text-white">チャージ方法を選択</h2>
 
-        {/* ★追加: 現在の残高を上部に表示★ */}
-        <div className="bg-gray-800 rounded-xl shadow-lg p-4 mb-6 animate-slide-in-right">
-          <p className="text-gray-300 text-lg">現在の残高</p>
-          <p className="text-green-400 text-4xl font-extrabold">
+        {/* 現在の残高を上部に表示 - HomeDashboardのスタイルに合わせる */}
+        <div className="bg-gradient-to-br from-[#4A148C] to-[#6A1B9A] rounded-2xl shadow-xl p-6 mb-6 animate-slide-in-right relative overflow-hidden">
+          <div className="absolute -top-8 -right-8 w-24 h-24 bg-white opacity-10 rounded-full blur-md"></div>
+          <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-white opacity-5 rounded-full blur-sm"></div>
+          <p className="text-gray-300 text-lg mb-2">現在の残高</p>
+          <p className="text-white text-4xl font-extrabold">
             ¥{balance.toLocaleString()}
           </p>
         </div>
 
-        <div className="flex flex-col space-y-4 max-w-sm mx-auto bg-gray-800 p-6 rounded-xl shadow-lg">
+        {/* チャージ方法選択ボタンのスタイル調整 */}
+        <div className="flex flex-col space-y-4 max-w-sm mx-auto bg-[#2C204B] p-6 rounded-2xl shadow-xl">
           <button
             onClick={() => handleSelectMethod('credit_card')}
-            className="bg-blue-500 text-white px-6 py-3 rounded-full text-lg font-bold shadow-md hover:bg-blue-600 transition-all duration-300 transform active:scale-95 flex items-center justify-center space-x-2"
+            className="bg-purple-600 text-white px-6 py-3 rounded-full text-lg font-bold shadow-md hover:bg-purple-700 transition-all duration-300 transform active:scale-95 flex items-center justify-center space-x-2"
           >
             <span className="text-2xl">💳</span> <span>クレジットカード</span>
           </button>
           <button
             onClick={() => handleSelectMethod('bank_transfer')}
-            className="bg-blue-500 text-white px-6 py-3 rounded-full text-lg font-bold shadow-md hover:bg-blue-600 transition-all duration-300 transform active:scale-95 flex items-center justify-center space-x-2"
+            className="bg-purple-600 text-white px-6 py-3 rounded-full text-lg font-bold shadow-md hover:bg-purple-700 transition-all duration-300 transform active:scale-95 flex items-center justify-center space-x-2"
           >
             <span className="text-2xl">🏦</span> <span>銀行振込</span>
           </button>
           <button
             onClick={() => handleSelectMethod('convenience_store')}
-            className="bg-blue-500 text-white px-6 py-3 rounded-full text-lg font-bold shadow-md hover:bg-blue-600 transition-all duration-300 transform active:scale-95 flex items-center justify-center space-x-2"
+            className="bg-purple-600 text-white px-6 py-3 rounded-full text-lg font-bold shadow-md hover:bg-purple-700 transition-all duration-300 transform active:scale-95 flex items-center justify-center space-x-2"
           >
             <span className="text-2xl">🏪</span> <span>コンビニ決済</span>
           </button>
           {/* 既存のRe-Mat残高へのチャージ方法 */}
           <button
             onClick={() => handleSelectMethod('re_mat_balance')}
-            className="bg-green-500 text-white px-6 py-3 rounded-full text-lg font-bold shadow-md hover:bg-green-600 transition-all duration-300 transform active:scale-95 flex items-center justify-center space-x-2"
+            className="bg-purple-600 text-white px-6 py-3 rounded-full text-lg font-bold shadow-md hover:bg-purple-700 transition-all duration-300 transform active:scale-95 flex items-center justify-center space-x-2"
           >
             <span className="text-2xl">💰</span> <span>Re-Mat残高をチャージ</span>
           </button>
@@ -93,18 +98,23 @@ const ChargeScreen = ({ balance, chargeAmount, setChargeAmount, handleCharge, se
 
   // チャージ方法が選択された後、金額入力とチャージボタンを表示
   return (
-    <div className="p-4 text-white text-center animate-fade-in font-inter">
-      <h2 className="text-3xl font-bold mb-4">チャージ ({methodNameMap[selectedMethod]})</h2>
+    // メインコンテナの背景をグラデーションに調整
+    <div className="p-4 text-white text-center animate-fade-in font-inter min-h-screen bg-gradient-to-br from-[#1A032E] to-[#3A0F5B]">
+      {/* タイトル色の調整 */}
+      <h2 className="text-3xl font-bold mb-4 text-white">チャージ ({methodNameMap[selectedMethod]})</h2>
 
-      {/* 現在の残高を上部に大きく表示 */}
-      <div className="bg-gray-800 rounded-xl shadow-lg p-4 mb-6 animate-slide-in-right">
-        <p className="text-gray-300 text-lg">現在の残高</p>
-        <p className="text-green-400 text-4xl font-extrabold">
+      {/* 現在の残高を上部に大きく表示 - HomeDashboardのスタイルに合わせる */}
+      <div className="bg-gradient-to-br from-[#4A148C] to-[#6A1B9A] rounded-2xl shadow-xl p-6 mb-6 animate-slide-in-right relative overflow-hidden">
+        <div className="absolute -top-8 -right-8 w-24 h-24 bg-white opacity-10 rounded-full blur-md"></div>
+        <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-white opacity-5 rounded-full blur-sm"></div>
+        <p className="text-gray-300 text-lg mb-2">現在の残高</p>
+        <p className="text-white text-4xl font-extrabold">
           ¥{balance.toLocaleString()}
         </p>
       </div>
 
-      <div className="bg-gray-800 rounded-xl shadow-lg p-6 mb-6 animate-slide-in-right">
+      {/* 金額入力とチャージボタンのコンテナのスタイル調整 */}
+      <div className="bg-[#2C204B] rounded-2xl shadow-xl p-6 mb-6 animate-slide-in-right">
         <p className="text-gray-300 text-lg mb-4">チャージ金額を入力してください</p>
         <input
           type="number"
@@ -114,7 +124,7 @@ const ChargeScreen = ({ balance, chargeAmount, setChargeAmount, handleCharge, se
             // エラー表示をクリアするロジックが必要であればここに追加
           }}
           placeholder="金額を入力"
-          className="text-black text-center text-2xl font-bold w-full p-3 rounded-lg mb-4 bg-gray-100 focus:ring-2 focus:ring-blue-500 transition-all duration-200"
+          className="text-black text-center text-2xl font-bold w-full p-3 rounded-lg mb-4 bg-gray-100 focus:ring-2 focus:ring-purple-500 transition-all duration-200" 
           inputMode="numeric"
           pattern="[0-9]*"
         />
@@ -122,7 +132,7 @@ const ChargeScreen = ({ balance, chargeAmount, setChargeAmount, handleCharge, se
         <button
           // handleChargeに選択されたメソッドも渡す
           onClick={() => handleCharge(parseInt(chargeAmount, 10), selectedMethod)}
-          className="bg-green-500 text-white px-8 py-4 rounded-full text-xl font-bold shadow-lg hover:bg-green-600 transition-all duration-300 transform active:scale-95"
+          className="bg-purple-600 text-white px-8 py-4 rounded-full text-xl font-bold shadow-lg hover:bg-purple-700 transition-all duration-300 transform active:scale-95" 
         >
           チャージを確定する
         </button>

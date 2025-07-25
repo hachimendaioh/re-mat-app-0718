@@ -529,7 +529,7 @@ export default function ReMatApp() {
 
   // --- Main Rendering Part ---
   return (
-    <div className="min-h-screen bg-gray-900 font-sans font-inter flex flex-col">
+    <div className="min-h-screenfont-sans font-inter flex flex-col bg-gradient-to-br from-[#1A032E] to-[#3A0F5B]">
       {/* Tailwind CSS Keyframe Animations Definition (これは常に必要なので外に出す) */}
       <style>{`
         @keyframes fade-in {
@@ -669,7 +669,7 @@ export default function ReMatApp() {
           {console.log(`App.js: Current screen is '${screen}'`)}
 
           {screen === 'home' && (
-            <div className="flex-grow p-4 overflow-y-auto pb-48 bg-gray-900">
+            <div className="flex-grow overflow-y-auto pb-48">
 
               {/* Top Header for Home Screen */}
               <div className="flex items-center justify-between p-4 bg-gray-800 rounded-b-xl shadow-lg mb-6">
@@ -712,6 +712,7 @@ export default function ReMatApp() {
                 points={points}
                 setScreen={setScreen}
                 isLoading={isLoading}
+                profileImage={profileImage} // プロフィール画像を追加
               />
             </div>
           )}
@@ -880,6 +881,7 @@ export default function ReMatApp() {
               setScreen={setScreen}
               auth={auth}
               unreadNotificationsCount={notifications.filter(n => !n.read).length}
+              currentScreen={screen} // currentScreenを渡す
             />
           )}
 

@@ -1,8 +1,8 @@
 // src/screens/AccountScreen.js
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { doc, getDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore'; // getDoc, setDoc, updateDoc, serverTimestamp を追加
-import { signOut, signInAnonymously } from 'firebase/auth'; // signOut, signInAnonymously を直接インポート
+import { doc, getDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { signOut, signInAnonymously } from 'firebase/auth';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 
 // 分割したセクションコンポーネントをインポート
@@ -24,13 +24,13 @@ const AccountScreen = ({
   auth,
   setScreen,
   setToast,
-  userName, // App.jsから受け取るuserName
-  setUserName // App.jsから受け取るsetUserName
+  userName,
+  setUserName
 }) => {
-  const [userEmail, setUserEmail] = useState(''); // AuthManagementSectionに渡すため残す
-  const [isEmailVerified, setIsEmailVerified] = useState(false); // AuthManagementSectionに渡すため残す
-  const [isAccountLoading, setIsAccountLoading] = useState(true); // AccountScreen全体のローディング
-  const [isAnonymousUser, setIsAnonymousUser] = useState(false); // AuthManagementSectionに渡すため残す
+  const [userEmail, setUserEmail] = useState('');
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [isAccountLoading, setIsAccountLoading] = useState(true);
+  const [isAnonymousUser, setIsAnonymousUser] = useState(false);
 
   // ユーザープロフィールをFirestoreから取得する関数
   const fetchUserProfile = useCallback(async () => {
@@ -134,83 +134,86 @@ const AccountScreen = ({
   }, [auth, setScreen, setModal, setToast]);
 
   return (
-    <div className="p-4 text-white animate-fade-in font-inter">
-      <h2 className="text-3xl font-bold mb-6 text-center text-yellow-300">アカウント</h2>
+    <div className="p-4 text-white animate-fade-in font-inter min-h-screen bg-gradient-to-br from-[#1A032E] to-[#3A0F5B]">
+      <h2 className="text-3xl font-bold mb-6 text-center text-white">アカウント</h2>
 
       {isAccountLoading ? (
         <LoadingSpinner />
       ) : (
         <>
-          {/* 匿名ユーザーの場合のメッセージ */}
           {isAnonymousUser && (
-            <div className="mb-6 p-4 bg-yellow-600 rounded-xl shadow-lg text-center animate-bounce-in">
-              <p className="font-bold text-lg mb-2">💡 ゲストユーザーです</p>
-              <p className="text-sm">
+            <div className="mb-6 p-4 bg-gray-800 rounded-2xl shadow-xl text-center animate-bounce-in">
+              <p className="font-bold text-lg mb-2 text-yellow-300">💡 ゲストユーザーです</p>
+              <p className="text-sm text-gray-300">
                 残高やポイントを保存し、全ての機能をご利用いただくには、<br/>
                 アカウント登録またはログインが必要です。
               </p>
               <button
                 onClick={() => setScreen('register')}
-                className="mt-4 bg-blue-500 text-white px-6 py-2 rounded-full text-md font-semibold hover:bg-blue-600 transition-all duration-300 transform hover:scale-105"
+                // SWCアプリのボタンのようなグラデーションと角丸に調整
+                className="mt-4 bg-gradient-to-r from-[#FF007F] to-[#CC00CC] text-white px-6 py-3 rounded-full text-md font-semibold shadow-lg hover:from-[#CC00CC] hover:to-[#FF007F] transition-all duration-300 transform hover:scale-105 active:scale-95"
               >
                 アカウントを登録して連携する
               </button>
             </div>
           )}
 
-          {/* プロフィールセクション */}
-          <UserProfileSection
-            profileImage={profileImage}
-            handleProfileImageUpload={handleProfileImageUpload}
-            db={db}
-            userId={userId}
-            appId={appId}
-            setModal={setModal}
-            setToast={setToast}
-            userName={userName}
-            setUserName={setUserName} // App.jsのsetUserNameを渡す
-            isAnonymousUser={isAnonymousUser}
-            isEmailVerified={isEmailVerified} // メール認証ステータスを渡す
-            setScreen={setScreen} // 詳細ページへの遷移用
-          />
-
-          {/* 認証管理セクション (匿名ユーザー以外の場合のみ表示) */}
-          {!isAnonymousUser && (
-            <AuthManagementSection
-              auth={auth}
+          <div className="mb-6 p-4 bg-gray-800 rounded-2xl shadow-xl">
+            <UserProfileSection
+              profileImage={profileImage}
+              handleProfileImageUpload={handleProfileImageUpload}
               db={db}
               userId={userId}
               appId={appId}
               setModal={setModal}
               setToast={setToast}
-              userEmail={userEmail}
-              setUserEmail={setUserEmail}
+              userName={userName}
+              setUserName={setUserName}
+              isAnonymousUser={isAnonymousUser}
               isEmailVerified={isEmailVerified}
-              setIsEmailVerified={setIsEmailVerified}
               setScreen={setScreen}
             />
+          </div>
+
+          {!isAnonymousUser && (
+            <div className="mb-6 p-4 bg-gray-800 rounded-2xl shadow-xl">
+              <AuthManagementSection
+                auth={auth}
+                db={db}
+                userId={userId}
+                appId={appId}
+                setModal={setModal}
+                setToast={setToast}
+                userEmail={userEmail}
+                setUserEmail={setUserEmail}
+                isEmailVerified={isEmailVerified}
+                setIsEmailVerified={setIsEmailVerified}
+                setScreen={setScreen}
+              />
+            </div>
           )}
 
-          {/* 店舗設定セクション */}
-          <StoreSettingsSection
-            db={db}
-            appId={appId}
-            userId={userId}
-            setModal={setModal}
-            setToast={setToast}
-            isStoreMode={isStoreMode}
-            setIsStoreMode={setIsStoreMode}
-            storeLogo={storeLogo}
-            handleStoreLogoUpload={handleStoreLogoUpload}
-            isAnonymousUser={isAnonymousUser}
-            setScreen={setScreen}
-          />
+          <div className="mb-6 p-4 bg-gray-800 rounded-2xl shadow-xl">
+            <StoreSettingsSection
+              db={db}
+              appId={appId}
+              userId={userId}
+              setModal={setModal}
+              setToast={setToast}
+              isStoreMode={isStoreMode}
+              setIsStoreMode={setIsStoreMode}
+              storeLogo={storeLogo}
+              handleStoreLogoUpload={handleStoreLogoUpload}
+              isAnonymousUser={isAnonymousUser}
+              setScreen={setScreen}
+            />
+          </div>
 
-          {/* ログアウトボタン */}
           <div className="mt-8 text-center animate-fade-in-up">
             <button
               onClick={handleLogout}
-              className="bg-red-600 text-white px-8 py-3 rounded-full text-lg font-semibold shadow-lg hover:bg-red-700 transition-all duration-300 transform hover:scale-105 active:scale-95"
+              // SWCアプリのボタンのようなグラデーションと角丸に調整
+              className="bg-gradient-to-r from-[#FF007F] to-[#CC00CC] text-white px-8 py-3 rounded-full text-lg font-semibold shadow-lg hover:from-[#CC00CC] hover:to-[#FF007F] transition-all duration-300 transform hover:scale-105 active:scale-95"
             >
               ログアウト
             </button>
