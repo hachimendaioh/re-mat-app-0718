@@ -163,6 +163,7 @@ const ScanScreen = ({
             }
           }
 
+<<<<<<< HEAD
           // ★追加: receiverIdのuserProfileからstoreNameを取得し、parsedReceiverNameを上書きする ★
           if (parsedReceiverId && db && appId) {
             try {
@@ -170,12 +171,29 @@ const ScanScreen = ({
               const receiverProfileSnap = await getDoc(receiverProfileRef);
               if (receiverProfileSnap.exists()) {
                 const receiverProfileData = receiverProfileSnap.data();
+=======
+          // receiverIdのuserProfileからstoreNameを取得し、parsedReceiverNameを上書きする
+          if (parsedReceiverId && db && appId) {
+            try {
+              const receiverProfileRef = doc(db, `artifacts/${appId}/users/${parsedReceiverId}/profile/userProfile`);
+              console.log("ScanScreen Debug: Attempting to fetch receiver profile for receiverId:", parsedReceiverId);
+              const receiverProfileSnap = await getDoc(receiverProfileRef);
+              
+              if (receiverProfileSnap.exists()) {
+                const receiverProfileData = receiverProfileSnap.data();
+                console.log("ScanScreen Debug: Receiver profile data exists. isStore:", receiverProfileData.isStore, "storeName:", receiverProfileData.storeName); // ★追加ログ★
+>>>>>>> 84e4295d3e1fab44aca1566d06ae881be4c54421
                 if (receiverProfileData.isStore && receiverProfileData.storeName) {
                   console.log("ScanScreen Debug: Receiver is a store. Using storeName:", receiverProfileData.storeName);
                   parsedReceiverName = receiverProfileData.storeName; // 店舗名を優先
                 } else {
                   console.log("ScanScreen Debug: Receiver is not a store or storeName not found. Using receiverName from QR/Order.");
                 }
+<<<<<<< HEAD
+=======
+              } else {
+                console.warn("ScanScreen Debug: Receiver profile document does not exist for receiverId:", parsedReceiverId);
+>>>>>>> 84e4295d3e1fab44aca1566d06ae881be4c54421
               }
             } catch (profileError) {
               console.error("ScanScreen Debug: Error fetching receiver profile for storeName:", profileError);
@@ -193,7 +211,11 @@ const ScanScreen = ({
               scannedAmount: parsedAmount,
               scannedStoreId: { 
                 id: parsedReceiverId, 
+<<<<<<< HEAD
                 name: parsedReceiverName, // ★修正: ここで決定した表示名を使用 ★
+=======
+                name: parsedReceiverName, 
+>>>>>>> 84e4295d3e1fab44aca1566d06ae881be4c54421
                 items: parsedItems, 
                 orderId: orderId 
               }

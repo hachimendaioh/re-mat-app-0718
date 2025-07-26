@@ -1,7 +1,6 @@
 // src/components/layout/NavigationBar.js
 
 import React from 'react';
-import { homeIcon, infoIcon, walletIcon, accounticon } from '../../constants/icons'; // アイコンをインポート
 
 /**
  * アプリケーションのフッターナビゲーションバーコンポーネント。
@@ -9,51 +8,46 @@ import { homeIcon, infoIcon, walletIcon, accounticon } from '../../constants/ico
  * @param {(screenName: string) => void} props.setScreen - 画面遷移関数
  * @param {object|null} props.auth - Firebase Authインスタンス
  * @param {number} props.unreadNotificationsCount - 未読通知の数
+ * @param {string} props.currentScreen - 現在表示されている画面の名前
  */
-const NavigationBar = ({ setScreen, auth, unreadNotificationsCount }) => {
-  // unreadNotificationsCount が数値であることを保証する
-  // App.js から渡される unreadNotificationsCount は既に計算済みなので、
-  // ここで toLocaleString() が呼ばれることはないはずですが、念のため数値であることを確認
+const NavigationBar = ({ setScreen, auth, unreadNotificationsCount, currentScreen }) => {
   const displayUnreadCount = typeof unreadNotificationsCount === 'number' ? unreadNotificationsCount : 0;
+  const isAnonymous = auth?.currentUser?.isAnonymous;
+
+  // ナビゲーションバーの各ボタンのデータ
+  // アイコンは既存のpublic/iconsフォルダ内の画像を使用
+  const navItems = [
+    { name: 'home', label: 'Home', iconSrc: '/icons/home.png' },
+    { name: 'notifications', label: '通知', iconSrc: '/icons/info.png', disabled: isAnonymous },
+    { name: 'wallet', label: 'Wallet', iconSrc: '/icons/wallet.png', disabled: isAnonymous },
+    { name: 'account', label: isAnonymous ? 'ゲスト' : 'アカウント', iconSrc: '/icons/account.png' },
+  ];
 
   return (
-    <div className="bg-[rgb(255,100,0)] p-4 flex justify-around items-center fixed bottom-0 left-0 w-full z-10 shadow-lg">
-      <button
-        onClick={() => setScreen('home')}
-        className={`flex flex-col items-center p-2 rounded-lg hover:bg-orange-600 transition-colors duration-200 active:scale-90 transform`}
-      >
-        <img src={homeIcon} alt="Home" className="w-7 h-7 mb-1" />
-        <span className="text-white text-xs font-bold">HOME</span>
-      </button>
-      <button
-        onClick={() => setScreen('notifications')}
-        className={`flex flex-col items-center p-2 rounded-lg hover:bg-orange-600 transition-colors duration-200 active:scale-90 transform relative
-          ${auth?.currentUser?.isAnonymous ? 'opacity-50 cursor-not-allowed' : ''}`}
-      >
-        <img src={infoIcon} alt="Info" className="w-7 h-7 mb-1" />
-        {/* ★修正: unreadNotificationsCount の表示を安全に★ */}
-        {displayUnreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold border-2 border-white">
-            {displayUnreadCount}
-          </span>
-        )}
-        <span className="text-white text-xs font-bold">info</span>
-      </button>
-      <button
-        onClick={() => setScreen('wallet')}
-        className={`flex flex-col items-center p-2 rounded-lg hover:bg-orange-600 transition-colors duration-200 active:scale-90 transform
-          ${auth?.currentUser?.isAnonymous ? 'opacity-50 cursor-not-allowed' : ''}`}
-      >
-        <img src={walletIcon} alt="Wallet" className="w-7 h-7 mb-1" />
-        <span className="text-white text-xs font-bold">Wallet</span>
-      </button>
-      <button
-        onClick={() => setScreen('account')}
-        className={`flex flex-col items-center p-2 rounded-lg hover:bg-orange-600 transition-colors duration-200 active:scale-90 transform`}
-      >
-        <img src={accounticon} alt="Account" className="w-7 h-7 mb-1" />
-        <span className="text-white text-xs font-bold">アカウント</span>
-      </button>
+    // 背景色と影をSWC風に調整、z-indexを高く
+    <div className="fixed bottom-0 left-0 w-full bg-gradient-to-br from-[#1A032E] to-[#3A0F5B] text-white py-2 shadow-xl z-20">
+      <nav className="flex justify-around items-center h-full">
+        {navItems.map((item) => (
+          <button
+            key={item.name}
+            onClick={() => setScreen(item.name)}
+            className={`flex flex-col items-center p-2 rounded-lg transition-colors duration-200 active:scale-90 transform
+              ${currentScreen === item.name ? 'text-purple-300' : 'text-gray-400'}
+              ${item.disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#2A0847]'}`}
+            disabled={item.disabled}
+          >
+            <div className="relative">
+              <img src={item.iconSrc} alt={item.label} className="w-7 h-7 mb-1" />
+              {item.name === 'notifications' && displayUnreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-[#FF007F] text-white text-xs rounded-full h-4 w-4 flex items-center justify-center font-bold border border-[#1A032E]">
+                  {displayUnreadCount}
+                </span>
+              )}
+            </div>
+            <span className="text-xs font-bold">{item.label}</span>
+          </button>
+        ))}
+      </nav>
     </div>
   );
 };

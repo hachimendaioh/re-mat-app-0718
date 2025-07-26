@@ -1,161 +1,193 @@
-// src/components/layout/HomeDashboard.js
+import React from 'react';
+import LoadingSpinner from '../common/LoadingSpinner';
 
-import React, { useState } from 'react'; // useState をインポート
-import AdSenseAd from '../common/AdSenseAd'; // AdSenseAdコンポーネントをインポート
-// アイコンをインポート
-// walletIcon の代わりに receiveIcon をインポートするように変更
-import { scanIcon, chargeIcon, pointsIcon, historyIcon, payIcon, receiveIcon } from '../../constants/icons'; 
+const HomeDashboard = ({
+  auth,
+  isStoreMode,
+  userId,
+  userName,
+  balance,
+  points,
+  setScreen,
+  isLoading,
+  profileImage
+}) => {
+  const currentUser = auth?.currentUser;
+  const isAnonymous = currentUser?.isAnonymous;
 
-/**
- * ホーム画面の主要なダッシュボードコンテンツを表示するコンポーネント。
- * @param {object} props - コンポーネントのプロパティ
- * @param {object|null} props.auth - Firebase Authインスタンス
- * @param {boolean} props.isStoreMode - 店舗モードかどうか
- * @param {string|null} props.userId - 現在のユーザーID
- * @param {string} props.userName - 現在のユーザー名
- * @param {number} props.balance - 現在の残高
- * @param {number} props.points - 現在のポイント
- * @param {(screenName: string) => void} props.setScreen - 画面遷移関数
- * @param {boolean} props.isLoading - アプリがロード中かどうか
- */
-const HomeDashboard = ({ auth, isStoreMode, userId, userName, balance, points, setScreen, isLoading }) => {
-  const [isAdLoaded, setIsAdLoaded] = useState(false); // AdSense広告がロードされたかどうかの状態
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-12rem)] text-white">
+        <LoadingSpinner />
+        <p className="mt-4 text-gray-300">データを読み込み中...</p>
+      </div>
+    );
+  }
 
   return (
-    <>
-      {/* トップのプロモーションバナー (既存のコードから移動) */}
-      <div className="w-full h-16 bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center text-white text-sm font-bold shadow-md relative overflow-hidden rounded-xl mb-6">
-        <div className="absolute inset-0 bg-pattern-dots opacity-20"></div>
-        <span className="relative z-10">お得なキャンペーン実施中！今すぐチェック！</span>
-        <button className="absolute right-2 top-1/2 -translate-y-1/2 text-white text-xs px-2 py-1 rounded-full bg-black bg-opacity-30 hover:bg-opacity-50 transition-colors">
-          閉じる
-        </button>
-      </div>
+    <div className="flex flex-col items-center justify-start p-4 text-white animate-fade-in relative z-0">
 
-      {/* AdSense広告の表示 (AdSenseAdコンポーネントを使用) */}
-      {/* 広告がロードされた場合にのみコンテナを表示し、間延びを防ぐ */}
-      {/* isLoadingがfalseの場合（ロード完了後）にのみ広告コンテナを表示 */}
-      {!isLoading && (
-        <div className={`w-full text-center my-6 ${isAdLoaded ? '' : 'h-0 overflow-hidden'}`}> {/* ロードされるまで高さを0にし、オーバーフローを隠す */}
-          <AdSenseAd
-            slot="6417629682" // 提供された広告スロットIDを指定
-            style={{ display: 'block' }} // 提供されたスタイルを適用 (display:blockは必須)
-            format="auto" // 自動フォーマットでレスポンシブに対応
-            // data-full-width-responsive="true" はAdSenseAdコンポーネント内部で処理されるため、ここでは不要
-            onAdLoad={() => setIsAdLoaded(true)} // 広告がロードされたら状態を更新
-          />
-        </div>
-      )}
-
-      {/* 店舗/ユーザーダッシュボード (既存のコードから移動) */}
-      <div className="mx-4 bg-white rounded-xl shadow-lg p-5 my-6 text-left text-black animate-slide-in-right">
-        <h3 className="text-xl font-bold mb-4 text-gray-800">
-          {auth?.currentUser?.isAnonymous ? 'ゲストユーザー' : (isStoreMode ? '店舗ダッシュボード' : 'ユーザーダッシュボード')}
-        </h3>
-        {/* ゲストユーザーの場合はユーザーIDを表示しない */}
-        {!auth?.currentUser?.isAnonymous && userId && (
-          <div className="flex justify-between mb-2 text-base">
-            <span className="text-gray-600">ユーザーID</span>
-            <span className="font-semibold text-blue-600 break-all">{userId}</span> {/* Display userId */}
-          </div>
-        )}
-        {auth?.currentUser?.isAnonymous ? (
-          <p className="text-sm text-gray-500">
-            <button
-              onClick={() => setScreen('guest_intro')}
-              className="text-blue-500 hover:text-blue-400 font-semibold underline"
-            >
-              アカウント登録/ログイン
-            </button>
-            {' '}すると、残高やポイントを保存できます。
-          </p>
-        ) : (
-          isStoreMode ? (
-            <>
-              <div className="flex justify-between mb-2 text-base">
-                <span className="text-gray-600">店舗名</span>
-                <span className="font-semibold">ReMat店舗</span>
-              </div>
-              <div className="flex justify-between mb-2 text-base">
-                <span className="text-gray-600">店舗ID</span>
-                <span className="font-semibold">STORE001</span>
-              </div>
-              <div className="flex justify-between mb-2 text-base">
-                <span className="text-gray-600">本日売上</span>
-                <span className="font-semibold text-green-600">5,000円</span>
-              </div>
-            </>
+      {/* トップヘッダーの調整 */}
+      <div className="flex items-center justify-between w-full max-w-md mb-8">
+        {/* プロフィール画像またはアバター */}
+        <div className="w-12 h-12 rounded-full bg-gray-600 flex items-center justify-center overflow-hidden shadow-lg animate-fade-in-up">
+          {profileImage ? (
+            <img src={profileImage} alt="プロフィール" className="w-full h-full object-cover" />
           ) : (
-            <>
-              <div className="flex justify-between mb-2 text-base">
-                <span className="text-gray-600">ユーザー名</span>
-                <span className="font-semibold">{userName || '未設定'}</span>
-              </div>
-            </>
-          )
+            <svg className="w-8 h-8 text-gray-300" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path>
+            </svg>
+          )}
+        </div>
+
+        {/* ユーザーの状態に応じたメッセージ */}
+        <div className="text-right flex-grow px-4">
+          {isAnonymous ? (
+            <p className="text-xl font-bold text-yellow-300">ようこそ、ゲストユーザー様！</p>
+          ) : (
+            <p className="text-xl font-bold">
+              {userName ? `${userName}様、おかえりなさい！` : 'ようこそ！'}
+            </p>
+          )}
+          <p className="text-sm text-gray-400">
+            今日もRE-Matをご利用いただきありがとうございます。
+          </p>
+        </div>
+        {isAnonymous && (
+          <button
+            onClick={() => setScreen('guest_intro')}
+            className="bg-gradient-to-r from-[#FF007F] to-[#CC00CC] text-white px-4 py-2 rounded-full text-sm font-semibold shadow-md hover:from-[#CC00CC] hover:to-[#FF007F] transition-all duration-300 transform active:scale-95"
+          >
+            ログイン
+          </button>
         )}
       </div>
 
-      {/* その他のホーム画面要素 (既存のコードから移動) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mx-4 mb-6">
-        {/* 視覚的機能制限の適用 */}
-        {[
-          { label: 'スキャン', action: 'スキャン', icon: scanIcon, restricted: true },
-          { label: 'チャージ', action: 'チャージ', icon: chargeIcon, restricted: true },
-          { label: 'ポイント', action: 'ポイント', icon: pointsIcon, restricted: false }, // ポイントはゲストでも見れる想定
-          { label: '取引履歴', action: '取引履歴', icon: historyIcon, restricted: true },
-          { label: '受け取る', action: '受け取る', icon: receiveIcon, restricted: true }, // ★変更: receiveIcon を使用
-        ].map((button, index) => (
-          <button
-            key={index}
-            onClick={() => {
-              // 匿名ユーザーで制限された機能の場合、モーダルを表示
-              if (auth?.currentUser?.isAnonymous && button.restricted) {
-                // setModal は HomeDashboard に渡されていないため、App.js で処理するか、
-                // HomeDashboard に setModal を props として渡す必要があります。
-                // ここでは、一旦コンソールログのみとします。
-                console.log("この機能はアカウント登録/ログインが必要です。");
-                // setScreen('guest_intro'); // 必要であればゲスト紹介画面に遷移
-              } else {
-                setScreen(button.action);
-              }
-            }}
-            // 匿名ユーザーでrestrictedな機能の場合にopacityとcursor-not-allowedを追加
-            className={`bg-[rgb(255,100,0)] text-white p-4 rounded-xl flex flex-col items-center justify-center shadow-md hover:bg-orange-600 transition-all duration-300 transform hover:scale-105 active:scale-95
-              ${auth?.currentUser?.isAnonymous && button.restricted ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={auth?.currentUser?.isAnonymous && button.restricted} // 匿名ユーザーで制限された機能は無効化
-          >
-            <img src={button.icon} alt={button.label} className="w-10 h-10 mb-2" />
-            <span className="text-white text-sm font-bold">{button.label}</span>
+     {/* 残高とポイントの表示（背景をもうほんの少しだけ明るい紫にし、線で囲む） */}
+      <div className="bg-[#3B2A65] border border-purple-700 p-6 rounded-2xl shadow-xl w-full max-w-md mb-6 animate-fade-in-up delay-100 relative overflow-hidden">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center text-gray-300">
+            <img src="https://placehold.co/24x24/ffffff/000000?text=¥" alt="残高" className="w-6 h-6 mr-2 opacity-80" />
+            <span className="text-lg font-semibold">残高</span>
+          </div>
+          <span className="text-4xl font-extrabold text-white">¥{balance.toLocaleString()}</span>
+        </div>
+        <div className="flex items-center justify-between mt-2">
+          <div className="flex items-center text-gray-300">
+            <img src="/icons/points.png" alt="ポイント" className="w-6 h-6 mr-2 opacity-80" />
+            <span className="text-lg font-semibold">ポイント</span>
+          </div>
+          <span className="text-3xl font-bold text-white">{points.toLocaleString()}pt</span>
+        </div>
+        <div className="mt-4 text-center text-xs text-gray-400">
+          <button onClick={() => setScreen('取引履歴')} className="underline hover:text-gray-200 transition-colors duration-200">
+            今月の利用履歴をチェック &gt;
           </button>
-        ))}
-      </div>
-
-      <div className="mx-4 bg-white rounded-xl shadow-lg p-5 mb-6 text-left text-black animate-slide-in-left">
-        <div className="flex justify-between items-center mb-3 text-lg font-medium">
-          <span className="text-gray-600">残高</span>
-          <span className="font-bold text-blue-600">{balance.toLocaleString()} 円</span>
-        </div>
-        <hr className="border-gray-300" />
-        <div className="flex justify-between items-center mt-3 text-lg font-medium">
-          <span className="text-gray-600">使えるポイント</span>
-          <span className="font-bold text-green-600">{points}pt</span>
         </div>
       </div>
 
-      <div className="mb-6 flex justify-center">
+      {/* よく使う機能へのショートカットボタン (SWCアプリのボタン風) */}
+      <div className="grid grid-cols-4 gap-3 w-full max-w-md mb-6 animate-fade-in-up delay-200">
         <button
-          onClick={() => setScreen('支払い')}
-          // 匿名ユーザーで支払いがrestrictedな機能の場合にopacityとcursor-not-allowedを追加
-          className={`bg-red-600 text-white w-24 h-24 rounded-full text-sm flex flex-col justify-center items-center shadow-lg hover:bg-red-700 transition-all duration-300 transform hover:scale-110 active:scale-95
-                ${auth?.currentUser?.isAnonymous ? 'opacity-50 cursor-not-allowed' : ''}`} // 支払いは常にrestricted
-          disabled={auth?.currentUser?.isAnonymous} // 匿名ユーザーの場合はボタンを無効化
+          onClick={() => setScreen('スキャン')}
+          className="flex flex-col items-center justify-center bg-[#2C204B] text-white py-4 px-2 rounded-2xl font-bold text-sm shadow-xl hover:bg-[#3B2A65] transition-all duration-300 transform active:scale-95"
         >
-          <img src={payIcon} alt="支払い" className="w-8 h-8 mb-1" />
-          <span className="font-bold">支払い</span>
+          <img src="/icons/scan.png" alt="スキャン" className="w-8 h-8 mb-2" />
+          スキャン
+        </button>
+        <button
+          onClick={() => setScreen('チャージ')}
+          className="flex flex-col items-center justify-center bg-[#2C204B] text-white py-4 px-2 rounded-2xl font-bold text-sm shadow-xl hover:bg-[#3B2A65] transition-all duration-300 transform active:scale-95"
+        >
+          <img src="/icons/charge.png" alt="チャージ" className="w-8 h-8 mb-2" />
+          チャージ
+        </button>
+        <button
+          onClick={() => setScreen('受け取る')}
+          className="flex flex-col items-center justify-center bg-[#2C204B] text-white py-4 px-2 rounded-2xl font-bold text-sm shadow-xl hover:bg-[#3B2A65] transition-all duration-300 transform active:scale-95"
+        >
+          <img src="/icons/receive.png" alt="受け取る" className="w-8 h-8 mb-2" />
+          受け取る
+        </button>
+        <button
+          onClick={() => setScreen('取引履歴')}
+          className="flex flex-col items-center justify-center bg-[#2C204B] text-white py-4 px-2 rounded-2xl font-bold text-sm shadow-xl hover:bg-[#3B2A65] transition-all duration-300 transform active:scale-95"
+        >
+          <img src="/icons/history.png" alt="取引履歴" className="w-8 h-8 mb-2" />
+          履歴
         </button>
       </div>
-    </>
+
+      {/* 店舗モードの状態表示 */}
+      <div className="bg-[#2C204B] p-6 rounded-2xl shadow-xl w-full max-w-md mb-6 text-center animate-fade-in-up delay-300">
+        {isStoreMode ? (
+          <>
+            <p className="text-lg font-bold mb-2 text-green-400">店舗モード: ✅ 有効</p>
+            <p className="text-sm text-gray-300">
+              QRコードで支払いを受け取ることができます。
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-gray-300">
+            店舗として支払いを受け取るには、<br />
+            アカウント画面で店舗モードを有効にしてください。
+          </p>
+        )}
+        <button
+          onClick={() => setScreen('account')}
+          className="mt-4 bg-gradient-to-r from-[#FF007F] to-[#CC00CC] text-white px-6 py-3 rounded-full text-md font-semibold shadow-lg hover:from-[#CC00CC] hover:to-[#FF007F] transition-all duration-300 transform active:scale-95"
+        >
+          アカウント設定へ
+        </button>
+      </div>
+
+      {/* 新しいポイント広告ブロック */}
+      <div className="bg-gradient-to-br from-[#4A148C] to-[#6A1B9A] p-6 rounded-2xl shadow-xl w-full max-w-md mb-6 animate-fade-in-up delay-150 relative overflow-hidden">
+        <div className="absolute top-0 left-0 h-full w-2/5 overflow-hidden rounded-l-2xl">
+          <img src="https://placehold.co/200x200/4A148C/FFFFFF?text=Points" alt="Points Icon" className="absolute -left-8 top-1/2 -translate-y-1/2 -rotate-12 opacity-80" style={{ width: '150%' }} />
+        </div>
+        <div className="relative z-10 text-right w-3/5 ml-auto">
+          <p className="text-sm font-bold text-pink-200 mb-2">あなたのポイント</p>
+          <h3 className="text-2xl font-extrabold text-white leading-tight mb-3">
+            <span className="block">現在のポイント残高</span>
+            <span className="block text-xl">{points.toLocaleString()}pt</span>
+          </h3>
+          <p className="text-xs text-gray-200 mb-4">
+            ポイントの詳細を確認して、お得な情報を見つけよう！
+          </p>
+          <button
+            onClick={() => setScreen('ポイント')}
+            className="bg-gradient-to-r from-[#FF007F] to-[#CC00CC] text-white px-5 py-2 rounded-full text-sm font-bold shadow-lg hover:from-[#CC00CC] hover:to-[#FF007F] transition-all duration-300"
+          >
+            ポイントを確認
+          </button>
+        </div>
+      </div>
+
+      {/* デイリーフリップのようなプロモーション/コンテンツブロックの例 */}
+      <div className="bg-gradient-to-br from-[#FF007F] to-[#CC00CC] p-6 rounded-2xl shadow-xl w-full max-w-md animate-fade-in-up delay-400 relative overflow-hidden">
+        <div className="absolute top-0 right-0 h-full w-2/5 overflow-hidden rounded-r-2xl">
+          <img src="https://placehold.co/300x200/FF007F/FFFFFF?text=RE-Mat+Card" alt="RE-Mat Card" className="absolute -right-8 top-1/2 -translate-y-1/2 rotate-12 opacity-80" style={{ width: '150%' }} />
+        </div>
+        <div className="relative z-10 text-left w-3/5">
+          <p className="text-sm font-bold text-pink-200 mb-2">今週のスペシャル</p>
+          <h3 className="text-2xl font-extrabold text-white leading-tight mb-3">
+            <span className="block">ポイントアップ</span>
+            <span className="block text-xl">キャンペーン開催中！</span>
+          </h3>
+          <p className="text-xs text-gray-200 mb-4">
+            特定店舗での支払いでポイント2倍！今すぐチェック！
+          </p>
+          <button
+            onClick={() => setScreen('points')}
+            className="bg-gradient-to-r from-[#FF007F] to-[#CC00CC] text-white px-5 py-2 rounded-full text-sm font-bold shadow-lg hover:from-[#CC00CC] hover:to-[#FF007F] transition-all duration-300"
+          >
+            詳細を見る
+          </button>
+        </div>
+      </div>
+
+    </div>
   );
 };
 

@@ -2,7 +2,7 @@ import React from 'react';
 import { signOut, signInAnonymously } from 'firebase/auth'; // ログアウトと匿名ログイン用
 
 // アイコンパスを修正
-const homeIcon = "/icons/HOME.png";
+const homeIcon = "/icons/home.png";
 const accountIcon = "/icons/account.png";
 const infoIcon = "/icons/info.png";
 const chargeIcon = "/icons/charge.png"; // charge.png をチャージ用アイコンとしてインポート

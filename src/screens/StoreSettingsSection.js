@@ -1,7 +1,11 @@
 // src/screens/StoreSettingsSection.js
 
 import React, { useState, useCallback, useEffect } from 'react';
+<<<<<<< HEAD
 import { doc, updateDoc, getDoc } from 'firebase/firestore'; // getDocを追加
+=======
+import { doc, updateDoc, getDoc } from 'firebase/firestore';
+>>>>>>> 84e4295d3e1fab44aca1566d06ae881be4c54421
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import StoreMenuManager from './StoreMenuManager';
 
@@ -15,7 +19,12 @@ const StoreSettingsSection = ({
   setIsStoreMode,
   storeLogo,
   handleStoreLogoUpload,
+<<<<<<< HEAD
   isAnonymousUser // 匿名ユーザーかどうか
+=======
+  isAnonymousUser,
+  setScreen // setScreenはここでは使用しないが、propsとして受け取るのは問題ない
+>>>>>>> 84e4295d3e1fab44aca1566d06ae881be4c54421
 }) => {
   const [isUpdatingStoreMode, setIsUpdatingStoreMode] = useState(false);
   const [storeName, setStoreName] = useState('');
@@ -60,7 +69,11 @@ const StoreSettingsSection = ({
     } else {
       setIsStoreProfileRegistered(false); // 店舗モードでない場合はリセット
     }
+<<<<<<< HEAD
   }, [db, appId, userId, isStoreMode]); // isStoreModeを依存配列に追加
+=======
+  }, [db, appId, userId, isStoreMode]);
+>>>>>>> 84e4295d3e1fab44aca1566d06ae881be4c54421
 
   // isStoreModeを更新する関数
   const handleToggleStoreMode = useCallback(async () => {
@@ -142,7 +155,10 @@ const StoreSettingsSection = ({
       <h3 className="text-xl font-bold mb-4 text-blue-300">店舗設定</h3>
 
       {/* 店舗モード切り替え */}
+<<<<<<< HEAD
       {/* ★修正: labelで全体を囲み、flex-growでテキスト部分がスペースを占有するようにする ★ */}
+=======
+>>>>>>> 84e4295d3e1fab44aca1566d06ae881be4c54421
       <label htmlFor="storeModeToggle" className="flex items-center justify-between mb-6 cursor-pointer">
         <span className="text-lg font-semibold flex-grow">店舗モードを有効にする</span>
         <div className="relative inline-block w-12 h-7">
@@ -178,6 +194,7 @@ const StoreSettingsSection = ({
                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 mb-3 bg-gray-100" placeholder="例: 03-1234-5678" />
 
               <label className="block text-gray-300 text-sm font-bold mb-2" htmlFor="storeZipCode">郵便番号</label>
+<<<<<<< HEAD
               <input type="text" id="storeZipCode" value={storeZipCode} onChange={(e) => setStoreZipCode(e.target.value)}
                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 mb-3 bg-gray-100" placeholder="例: 123-4567" />
 
@@ -195,6 +212,25 @@ const StoreSettingsSection = ({
               
               <label className="block text-gray-300 text-sm font-bold mb-2" htmlFor="storeBuildingName">建物名・部屋番号 (任意)</label>
               <input type="text" id="storeBuildingName" value={storeBuildingName} onChange={(e) => setStoreBuildingName(e.target.value)}
+=======
+              <input type="text" id="storeZipCode" value={storeZipCode} onChange={(e) => setZipCode(e.target.value)}
+                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 mb-3 bg-gray-100" placeholder="例: 123-4567" />
+
+              <label className="block text-gray-300 text-sm font-bold mb-2" htmlFor="storePrefecture">都道府県</label>
+              <input type="text" id="storePrefecture" value={storePrefecture} onChange={(e) => setPrefecture(e.target.value)}
+                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 mb-3 bg-gray-100" placeholder="例: 東京都" />
+
+              <label className="block text-gray-300 text-sm font-bold mb-2" htmlFor="storeCity">市区町村</label>
+              <input type="text" id="storeCity" value={storeCity} onChange={(e) => setCity(e.target.value)}
+                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 mb-3 bg-gray-100" placeholder="例: 渋谷区" />
+              
+              <label className="block text-gray-300 text-sm font-bold mb-2" htmlFor="storeStreetAddress">番地 (必須)</label>
+              <input type="text" id="storeStreetAddress" value={storeStreetAddress} onChange={(e) => setStreetAddress(e.target.value)}
+                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 mb-3 bg-gray-100" placeholder="例: 1-2-3" />
+              
+              <label className="block text-gray-300 text-sm font-bold mb-2" htmlFor="storeBuildingName">建物名・部屋番号 (任意)</label>
+              <input type="text" id="storeBuildingName" value={storeBuildingName} onChange={(e) => setBuildingName(e.target.value)}
+>>>>>>> 84e4295d3e1fab44aca1566d06ae881be4c54421
                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 mb-3 bg-gray-100" placeholder="例: RE-Matビル 101号室" />
 
               <button
@@ -204,6 +240,16 @@ const StoreSettingsSection = ({
               >
                 {isSavingStoreProfile ? <LoadingSpinner size="sm" /> : '店舗情報を登録'}
               </button>
+<<<<<<< HEAD
+=======
+              {/* ★削除: アカウント画面へ戻るボタンを削除 ★ */}
+              {/* <button
+                onClick={() => setScreen('account')}
+                className="mt-4 bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-full font-semibold shadow-md transition-all duration-300 w-full"
+              >
+                アカウント画面へ戻る
+              </button> */}
+>>>>>>> 84e4295d3e1fab44aca1566d06ae881be4c54421
             </div>
           ) : ( // 店舗情報が登録済みの場合
             <>

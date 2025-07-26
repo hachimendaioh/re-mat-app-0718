@@ -29,6 +29,7 @@ import ForgotPasswordScreen from './screens/ForgotPasswordScreen';
 import PaymentConfirmationScreen from './screens/PaymentConfirmationScreen';
 import ReceivePaymentScreen from './screens/ReceivePaymentScreen';
 import WalletScreen from './screens/WalletScreen'; // WalletScreenをインポート
+import ProfileDetailsScreen from './screens/ProfileDetailsScreen'; // ProfileDetailsScreenをインポート
 
 // サイドドロワーコンポーネントをインポート
 import SideDrawer from './components/SideDrawer';
@@ -55,8 +56,18 @@ export default function ReMatApp() {
   const [scanMode, setScanMode] = useState('initial');
   const [lastTransactionDetails, setLastTransactionDetails] = useState({ type: null, amount: 0 });
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+<<<<<<< HEAD
   // ★追加: App.jsでstoreNameを管理するstate ★
   const [appStoreName, setAppStoreName] = useState(''); 
+=======
+  // App.jsでstoreNameを管理するstate
+  const [appStoreName, setAppStoreName] = useState(''); 
+
+  // 通知から取引履歴へ遷移するためのstate
+  const [initialSelectedHistoryTransactionId, setInitialSelectedHistoryTransactionId] = useState(null);
+  const [initialSelectedHistoryTransactionType, setInitialSelectedHistoryTransactionType] = useState(null);
+
+>>>>>>> 84e4295d3e1fab44aca1566d06ae881be4c54421
 
   // useAppInitカスタムフックからFirebase関連の状態とインスタンスを取得
   const {
@@ -86,8 +97,7 @@ export default function ReMatApp() {
   // useAppLoggerカスタムフックから画面表示用ログを取得
   const onScreenLogs = useAppLogger(isFirebaseReady, appId, screen, auth, userId);
 
-
-  const appLastUpdated = "2025年7月14日 15:00 JST"; 
+  const appLastUpdated = "2025年7月22日 14:00 JST"; 
 
   const initialModalState = {
     isOpen: false, title: '', message: '', onConfirm: () => {}, onCancel: () => {}, showCancelButton: false, customContent: null,
@@ -126,9 +136,15 @@ export default function ReMatApp() {
               if (typeof data.isStore === 'boolean') {
                 setIsStoreMode(data.isStore);
               }
+<<<<<<< HEAD
               // ★追加: storeNameも読み込む ★
               setAppStoreName(data.storeName || ''); 
               console.log("App.js: Fetched storeName on load:", data.storeName); // ★追加ログ★
+=======
+              // storeNameも読み込む
+              setAppStoreName(data.storeName || ''); 
+              console.log("App.js: Fetched storeName on load:", data.storeName);
+>>>>>>> 84e4295d3e1fab44aca1566d06ae881be4c54421
             }
           } catch (error) {
             console.error("Error fetching isStoreMode/storeName from profile:", error);
@@ -250,6 +266,10 @@ export default function ReMatApp() {
           console.log("Firestore Batch: Profile update added to batch.");
 
           const newTransactionRef = doc(transactionsColRef); 
+<<<<<<< HEAD
+=======
+          const transactionId = newTransactionRef.id; // トランザクションIDを取得
+>>>>>>> 84e4295d3e1fab44aca1566d06ae881be4c54421
           batch.set(newTransactionRef, { 
             store: 'チャージ',
             amount: amount,
@@ -264,8 +284,10 @@ export default function ReMatApp() {
           batch.set(newNotificationRef, { 
             text: `¥${amount.toLocaleString()}をチャージしました。現在の残高：¥${(balance + amount).toLocaleString()}`,
             read: false,
-            type: 'info',
-            timestamp: serverTimestamp()
+            type: 'charge', // 通知タイプを'charge'に設定
+            timestamp: serverTimestamp(),
+            transactionId: transactionId, // 関連するトランザクションID
+            transactionType: 'charge', // 関連するトランザクションタイプ
           });
           console.log("Firestore Batch: Notification add added to batch.");
 
@@ -353,6 +375,24 @@ export default function ReMatApp() {
       const result = await callProcessPayment(callData);
 
       console.log('Cloud Function 呼び出し成功:', result.data);
+
+      // 支払い通知にtransactionIdとtransactionTypeを追加 (Cloud Functionが返す場合を想定)
+      // Cloud Function 'processPayment' がトランザクションIDを返す場合、それを通知に含める
+      // 現状Cloud FunctionはトランザクションIDを返さないため、ここでは仮にnullとするか、
+      // 支払い通知自体をCloud Functionで生成するように変更する必要がある。
+      // 今回は、Cloud Functionが通知も生成すると仮定し、ここでは支払い完了画面への遷移のみ行う。
+      // もしCloud Functionが通知を生成しない場合、ここで支払い通知を生成し、transactionIdを含める必要がある。
+      // 例:
+      // const newNotificationRef = doc(collection(db, `artifacts/${appId}/users/${userId}/notifications`));
+      // batch.set(newNotificationRef, {
+      //   text: `¥${paymentAmount.toLocaleString()}を支払いました。`,
+      //   read: false,
+      //   type: 'payment',
+      //   timestamp: serverTimestamp(),
+      //   transactionId: result.data.transactionId, // Cloud Functionから返される場合
+      //   transactionType: 'payment',
+      // });
+
 
       setScannedAmount(null);
       setScannedStoreId({ id: null, name: null, items: null, orderId: null }); 
@@ -475,12 +515,35 @@ export default function ReMatApp() {
     setToast({ message: '支払いをキャンセルしました。', type: 'info' });
   }, [setScannedAmount, setScannedStoreId, setScanInputAmount, setScreen, resetModal, setToast]);
 
+  // 通知クリックハンドラ
+  const handleNotificationClick = useCallback((notification) => {
+    console.log("handleNotificationClick called with notification:", notification); // デバッグログ
+    if (notification.transactionId && notification.transactionType) {
+      console.log("Navigating to history for transaction:", notification.transactionId, notification.transactionType); // デバッグログ
+      setInitialSelectedHistoryTransactionId(notification.transactionId);
+      setInitialSelectedHistoryTransactionType(notification.transactionType);
+      setScreen('取引履歴'); // 取引履歴画面へ遷移
+      handleNotificationRead(notification.id); // 通知を既読にする
+    } else {
+      console.log("Notification has no transactionId or transactionType. Displaying modal."); // デバッグログ
+      // 関連する取引履歴がない通知の場合、単に既読にするか、モーダルで詳細を表示する
+      setModal({
+        isOpen: true,
+        title: '通知詳細',
+        message: notification.text,
+        onConfirm: () => resetModal(),
+        showCancelButton: false,
+      });
+      handleNotificationRead(notification.id); // 通知を既読にする
+    }
+  }, [setInitialSelectedHistoryTransactionId, setInitialSelectedHistoryTransactionType, setScreen, handleNotificationRead, setModal, resetModal]);
+
 
   const unreadNotificationsCount = notifications.filter(n => !n.read).length;
 
   // --- Main Rendering Part ---
   return (
-    <div className="min-h-screen bg-gray-900 font-sans font-inter flex flex-col">
+    <div className="min-h-screenfont-sans font-inter flex flex-col bg-gradient-to-br from-[#1A032E] to-[#3A0F5B]">
       {/* Tailwind CSS Keyframe Animations Definition (これは常に必要なので外に出す) */}
       <style>{`
         @keyframes fade-in {
@@ -620,7 +683,7 @@ export default function ReMatApp() {
           {console.log(`App.js: Current screen is '${screen}'`)}
 
           {screen === 'home' && (
-            <div className="flex-grow p-4 overflow-y-auto pb-48 bg-gray-900">
+            <div className="flex-grow overflow-y-auto pb-48">
 
               {/* Top Header for Home Screen */}
               <div className="flex items-center justify-between p-4 bg-gray-800 rounded-b-xl shadow-lg mb-6">
@@ -663,6 +726,7 @@ export default function ReMatApp() {
                 points={points}
                 setScreen={setScreen}
                 isLoading={isLoading}
+                profileImage={profileImage} // プロフィール画像を追加
               />
             </div>
           )}
@@ -715,6 +779,10 @@ export default function ReMatApp() {
               history={history}
               setScreen={setScreen}
               setModal={setModal}
+              initialSelectedTransactionId={initialSelectedHistoryTransactionId}
+              initialSelectedTransactionType={initialSelectedHistoryTransactionType}
+              setInitialSelectedHistoryTransactionId={setInitialSelectedHistoryTransactionId}
+              setInitialSelectedHistoryTransactionType={setInitialSelectedHistoryTransactionType}
             />
           )}
           {screen === 'notifications' && (
@@ -724,6 +792,7 @@ export default function ReMatApp() {
               handleMarkAllNotificationsRead={handleMarkAllNotificationsRead}
               setScreen={setScreen}
               setModal={setModal}
+              onNotificationClick={handleNotificationClick}
             />
           )}
           {screen === 'account' && (
@@ -743,6 +812,27 @@ export default function ReMatApp() {
               setToast={setToast}
               db={db}
               appId={appId}
+            />
+          )}
+          {screen === 'profile_details' && (
+            <ProfileDetailsScreen
+              setScreen={setScreen}
+              auth={auth}
+              userId={userId}
+              userName={userName}
+              setUserName={setUserName} // App.jsのuserName stateを更新する関数を渡す
+              profileImage={profileImage}
+              handleProfileImageUpload={handleProfileImageUpload} // App.jsのhandleProfileImageUploadを渡す
+              isStoreMode={isStoreMode}
+              setIsStoreMode={setIsStoreMode}
+              storeLogo={storeLogo}
+              handleStoreLogoUpload={handleStoreLogoUpload}
+              db={db}
+              appId={appId}
+              setModal={setModal}
+              setToast={setToast}
+              isEmailVerified={auth?.currentUser?.emailVerified} // メール認証ステータスを渡す
+              isAnonymousUser={auth?.currentUser?.isAnonymous} // 匿名ユーザーかどうかを渡す
             />
           )}
           {screen === '支払い' && (
@@ -800,11 +890,12 @@ export default function ReMatApp() {
           </div>
 
           {/* ナビゲーションバーコンポーネントをレンダリング */}
-          {(screen === 'home' || screen === 'スキャン' || screen === 'チャージ' || screen === 'ポイント' || screen === '取引履歴' || screen === 'notifications' || screen === 'account' || screen === '支払い' || screen === '支払い完了' || screen === '受け取る' || screen === 'wallet') && (
+          {(screen === 'home' || screen === 'スキャン' || screen === 'チャージ' || screen === 'ポイント' || screen === '取引履歴' || screen === 'notifications' || screen === 'account' || screen === '支払い' || screen === '支払い完了' || screen === '受け取る' || screen === 'wallet' || screen === 'profile_details') && (
             <NavigationBar
               setScreen={setScreen}
               auth={auth}
               unreadNotificationsCount={notifications.filter(n => !n.read).length}
+              currentScreen={screen} // currentScreenを渡す
             />
           )}
 
