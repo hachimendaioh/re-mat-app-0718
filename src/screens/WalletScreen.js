@@ -9,7 +9,7 @@ const pointsIcon = '/icons/points.png'; // points.pngのパス
 
 const WalletScreen = ({ balance, points, setScreen, setModal }) => { // setModalをプロップとして受け取る
   return (
-    <div className="p-4 text-white text-center animate-fade-in font-inter flex flex-col items-center justify-center min-h-[calc(100vh-120px)]">
+    <div className="p-4 pb-48 text-white text-center animate-fade-in font-inter flex flex-col items-center justify-center min-h-[calc(100vh-120px)]">
       <h2 className="text-3xl font-bold mb-8">マイウォレット</h2>
 
       {/* 残高とポイントの概要カード */}

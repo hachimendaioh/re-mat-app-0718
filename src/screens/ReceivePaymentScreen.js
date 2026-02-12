@@ -386,7 +386,7 @@ const ReceivePaymentScreen = ({ userId, userName, setScreen, setModal, db, appId
   };
 
   return (
-    <div className="p-4 text-white text-center flex flex-col items-center font-inter animate-fade-in">
+    <div className="p-4 pb-48 text-white text-center flex flex-col items-center font-inter animate-fade-in">
       <h2 className="text-3xl font-bold mb-6">QRコードで受け取る</h2>
 
       {isAnonymousUser && (
