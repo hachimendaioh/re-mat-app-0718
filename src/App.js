@@ -56,18 +56,13 @@ export default function ReMatApp() {
   const [scanMode, setScanMode] = useState('initial');
   const [lastTransactionDetails, setLastTransactionDetails] = useState({ type: null, amount: 0 });
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-<<<<<<< HEAD
-  // ★追加: App.jsでstoreNameを管理するstate ★
-  const [appStoreName, setAppStoreName] = useState(''); 
-=======
   // App.jsでstoreNameを管理するstate
-  const [appStoreName, setAppStoreName] = useState(''); 
+  const [appStoreName, setAppStoreName] = useState('');
 
   // 通知から取引履歴へ遷移するためのstate
   const [initialSelectedHistoryTransactionId, setInitialSelectedHistoryTransactionId] = useState(null);
   const [initialSelectedHistoryTransactionType, setInitialSelectedHistoryTransactionType] = useState(null);
 
->>>>>>> 84e4295d3e1fab44aca1566d06ae881be4c54421
 
   // useAppInitカスタムフックからFirebase関連の状態とインスタンスを取得
   const {
@@ -136,15 +131,9 @@ export default function ReMatApp() {
               if (typeof data.isStore === 'boolean') {
                 setIsStoreMode(data.isStore);
               }
-<<<<<<< HEAD
-              // ★追加: storeNameも読み込む ★
-              setAppStoreName(data.storeName || ''); 
-              console.log("App.js: Fetched storeName on load:", data.storeName); // ★追加ログ★
-=======
               // storeNameも読み込む
-              setAppStoreName(data.storeName || ''); 
+              setAppStoreName(data.storeName || '');
               console.log("App.js: Fetched storeName on load:", data.storeName);
->>>>>>> 84e4295d3e1fab44aca1566d06ae881be4c54421
             }
           } catch (error) {
             console.error("Error fetching isStoreMode/storeName from profile:", error);
@@ -265,11 +254,8 @@ export default function ReMatApp() {
           });
           console.log("Firestore Batch: Profile update added to batch.");
 
-          const newTransactionRef = doc(transactionsColRef); 
-<<<<<<< HEAD
-=======
+          const newTransactionRef = doc(transactionsColRef);
           const transactionId = newTransactionRef.id; // トランザクションIDを取得
->>>>>>> 84e4295d3e1fab44aca1566d06ae881be4c54421
           batch.set(newTransactionRef, { 
             store: 'チャージ',
             amount: amount,

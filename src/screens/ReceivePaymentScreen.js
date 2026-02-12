@@ -4,11 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 // QRious はCDNで読み込まれるため、ここではインポート不要です。
 
 import { getAuth } from 'firebase/auth'; // ユーザー認証状態の確認
-<<<<<<< HEAD
-import { collection, doc, setDoc, serverTimestamp, query, onSnapshot } from 'firebase/firestore'; // FirestoreのインポートとonSnapshotを追加
-=======
 import { collection, doc, setDoc, serverTimestamp, query, onSnapshot, writeBatch } from 'firebase/firestore'; // FirestoreのインポートとonSnapshot, writeBatchを追加
->>>>>>> 84e4295d3e1fab44aca1566d06ae881be4c54421
 import LoadingSpinner from '../components/common/LoadingSpinner'; // LoadingSpinnerをインポート
 
 // dbとappId、isStoreModeをpropsとして受け取る
@@ -164,24 +160,6 @@ const ReceivePaymentScreen = ({ userId, userName, setScreen, setModal, db, appId
       return;
     }
 
-<<<<<<< HEAD
-    // ★追加: 店舗モードと金額直接入力の組み合わせに対するバリデーション ★
-    if (isStoreMode && !showMenu) {
-      setQrError('店舗モードではメニュー選択が必要です。個人間の送金をする場合は店舗モードをOFFにしてください。');
-      setModal({
-        isOpen: true,
-        title: '機能制限',
-        message: '店舗モードが有効な場合、メニューから商品を選択してQRコードを生成してください。個人間の送金をする場合は、アカウント画面で店舗モードをOFFにしてください。',
-        onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
-        showCancelButton: false,
-      });
-      return;
-    }
-    // ★追加ここまで ★
-
-
-=======
->>>>>>> 84e4295d3e1fab44aca1566d06ae881be4c54421
     const receiverDisplayName = isStoreMode && userStoreName ? userStoreName : userName;
 
     let qrPayload = {
@@ -191,12 +169,8 @@ const ReceivePaymentScreen = ({ userId, userName, setScreen, setModal, db, appId
     };
     
     // メニュー選択時はFirestoreに注文を保存し、orderIdをQRに含める
-<<<<<<< HEAD
-    if (showMenu && Object.keys(selectedItems).length > 0) {
-=======
     // 店舗モードでメニュー選択がされている場合
     if (isStoreMode && showMenu && Object.keys(selectedItems).length > 0) {
->>>>>>> 84e4295d3e1fab44aca1566d06ae881be4c54421
         if (!db || !appId) {
             setQrError("Firestoreが初期化されていません。");
             return;
@@ -237,57 +211,44 @@ const ReceivePaymentScreen = ({ userId, userName, setScreen, setModal, db, appId
                 status: 'pending',
             });
 
-<<<<<<< HEAD
-=======
-            // ★修正: 受取側の取引履歴に「受取」として記録し、transactionIdを含める ★
+            // 受取側の取引履歴に「受取」として記録し、transactionIdを含める
             const transactionsColRef = collection(db, `artifacts/${appId}/users/${userId}/transactions`);
-            const newTransactionRef = doc(transactionsColRef); // 新しいトランザクションの参照を取得
-            const transactionId = newTransactionRef.id; // トランザクションIDを取得
+            const newTransactionRef = doc(transactionsColRef);
+            const transactionId = newTransactionRef.id;
             await setDoc(newTransactionRef, {
-              store: 'RE-Matユーザー', // 送金元がRE-Matユーザーであることを示す
+              store: 'RE-Matユーザー',
               amount: finalAmount,
               date: serverTimestamp(),
-              type: 'receive', // 新しいタイプ 'receive'
+              type: 'receive',
               notification_type: 'info',
               timestamp: serverTimestamp(),
-              orderId: orderId, // 関連するorderId
+              orderId: orderId,
             });
             console.log("ReceivePaymentScreen: 'Receive' transaction recorded for receiver with ID:", transactionId);
 
-            // ★修正: 受取通知を記録し、transactionIdとtransactionTypeを含める ★
+            // 受取通知を記録し、transactionIdとtransactionTypeを含める
             const notificationsColRef = collection(db, `artifacts/${appId}/users/${userId}/notifications`);
             await setDoc(doc(notificationsColRef), {
               text: `¥${finalAmount.toLocaleString()}を受け取りました。`,
               read: false,
-              type: 'receive', // 通知タイプを'receive'に設定
+              type: 'receive',
               timestamp: serverTimestamp(),
-              transactionId: transactionId, // 関連するトランザクションID
-              transactionType: 'receive', // 関連するトランザクションタイプ
+              transactionId: transactionId,
+              transactionType: 'receive',
             });
             console.log("ReceivePaymentScreen: 'Receive' notification recorded for receiver.");
 
-
->>>>>>> 84e4295d3e1fab44aca1566d06ae881be4c54421
             console.log("ReceivePaymentScreen: Order saved to Firestore with ID:", orderId);
             qrPayload.orderId = orderId; 
 
         } catch (error) {
-<<<<<<< HEAD
-            console.error("ReceivePaymentScreen: Failed to save order to Firestore:", error);
-            setQrError(`注文の準備に失敗しました: ${error.message || error.toString()}`);
-=======
             console.error("ReceivePaymentScreen: Failed to save order or record transaction:", error);
             setQrError(`注文の準備または取引記録に失敗しました: ${error.message || error.toString()}`);
->>>>>>> 84e4295d3e1fab44aca1566d06ae881be4c54421
             setIsQrGenerated(false);
             setModal({
                 isOpen: true,
                 title: 'エラー',
-<<<<<<< HEAD
-                message: `注文の準備に失敗しました。\n詳細: ${error.message || error.toString()}`,
-=======
                 message: `注文の準備または取引記録に失敗しました。\n詳細: ${error.message || error.toString()}`,
->>>>>>> 84e4295d3e1fab44aca1566d06ae881be4c54421
                 onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })),
                 showCancelButton: false,
             });
@@ -298,46 +259,38 @@ const ReceivePaymentScreen = ({ userId, userName, setScreen, setModal, db, appId
             setIsSavingOrder(false); 
         }
     }
-<<<<<<< HEAD
-    else if (!showMenu && finalAmount > 0) {
-        console.log("ReceivePaymentScreen: Direct amount input. Generating QR without orderId.");
-    } else {
-        console.log("ReceivePaymentScreen: No menu items selected or invalid direct amount. Cannot generate QR.");
-=======
     // 店舗モードではない、または店舗モードだがメニュー選択をしていない（金額直接入力）場合
-    // この場合はorderIdは生成せず、QRコードに直接金額を含める
     else if ((!isStoreMode && finalAmount > 0) || (isStoreMode && !showMenu && finalAmount > 0)) {
         console.log("ReceivePaymentScreen: Direct amount input (or non-store mode). Generating QR without orderId.");
-        // orderIdはqrPayloadに含めない
 
-        // ★修正: 個人間送金（金額直接入力）の場合の受取側の取引履歴記録にtransactionIdを含める ★
+        // 個人間送金（金額直接入力）の場合の受取側の取引履歴記録にtransactionIdを含める
         if (!db || !appId) {
           setQrError("Firestoreが初期化されていません。");
           return;
         }
         try {
           const transactionsColRef = collection(db, `artifacts/${appId}/users/${userId}/transactions`);
-          const newTransactionRef = doc(transactionsColRef); // 新しいトランザクションの参照を取得
-          const transactionId = newTransactionRef.id; // トランザクションIDを取得
+          const newTransactionRef = doc(transactionsColRef);
+          const transactionId = newTransactionRef.id;
           await setDoc(newTransactionRef, {
-            store: '個人間送金', // 送金元が個人であることを示す
+            store: '個人間送金',
             amount: finalAmount,
             date: serverTimestamp(),
-            type: 'receive', // 新しいタイプ 'receive'
+            type: 'receive',
             notification_type: 'info',
             timestamp: serverTimestamp(),
           });
           console.log("ReceivePaymentScreen: 'Receive' (P2P) transaction recorded for receiver with ID:", transactionId);
 
-          // ★修正: 受取通知を記録し、transactionIdとtransactionTypeを含める ★
+          // 受取通知を記録し、transactionIdとtransactionTypeを含める
           const notificationsColRef = collection(db, `artifacts/${appId}/users/${userId}/notifications`);
           await setDoc(doc(notificationsColRef), {
             text: `¥${finalAmount.toLocaleString()}を受け取りました。`,
             read: false,
             type: 'receive',
             timestamp: serverTimestamp(),
-            transactionId: transactionId, // 関連するトランザクションID
-            transactionType: 'receive', // 関連するトランザクションタイプ
+            transactionId: transactionId,
+            transactionType: 'receive',
           });
           console.log("ReceivePaymentScreen: 'Receive' (P2P) notification recorded for receiver.");
 
@@ -356,7 +309,6 @@ const ReceivePaymentScreen = ({ userId, userName, setScreen, setModal, db, appId
         }
     } else {
         console.log("ReceivePaymentScreen: No valid input to generate QR.");
->>>>>>> 84e4295d3e1fab44aca1566d06ae881be4c54421
         setQrError('有効な金額を入力するか、メニューを選択してください。');
         return;
     }
@@ -515,17 +467,10 @@ const ReceivePaymentScreen = ({ userId, userName, setScreen, setModal, db, appId
             // 金額直接入力モード (店舗モードでも利用可能)
             <div className="bg-gray-800 p-4 rounded-xl shadow-lg">
               <h3 className="text-lg font-bold mb-3 text-blue-300">金額を直接入力</h3>
-<<<<<<< HEAD
-              {/* ★追加: 店舗モード時の金額直接入力に関する注意書き ★ */}
-              <p className="text-red-300 text-sm mb-4">
-                店舗モードでは、メニュー選択が推奨されます。<br/>
-                個人ユーザーへの送金をする場合は、アカウント画面で店舗モードをOFFにしてください。
-=======
               {/* 店舗モード時の金額直接入力に関する注意書き */}
               <p className="text-gray-400 text-sm mb-4">
                 店舗モードでは、メニュー選択が推奨されます。<br/>
                 メニューにない商品や個人間の送金の場合は、こちらをご利用ください。
->>>>>>> 84e4295d3e1fab44aca1566d06ae881be4c54421
               </p>
               <input
                 type="number"
@@ -538,13 +483,10 @@ const ReceivePaymentScreen = ({ userId, userName, setScreen, setModal, db, appId
                 className="w-full p-3 rounded-lg text-black text-2xl font-bold text-center mb-4 bg-gray-100"
                 disabled={isAnonymousUser}
               />
-<<<<<<< HEAD
-=======
               {/* 50円未満の金額に対するUI上の警告 */}
               {directAmount !== '' && parseInt(directAmount, 10) < 50 && parseInt(directAmount, 10) > 0 && (
                 <p className="text-red-400 text-sm mt-2">送金金額は50円以上にしてください。</p>
               )}
->>>>>>> 84e4295d3e1fab44aca1566d06ae881be4c54421
             </div>
           )
         ) : ( // 店舗モードでない場合、金額直接入力のみ
