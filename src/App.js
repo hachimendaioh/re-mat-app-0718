@@ -30,6 +30,7 @@ import PaymentConfirmationScreen from './screens/PaymentConfirmationScreen';
 import ReceivePaymentScreen from './screens/ReceivePaymentScreen';
 import WalletScreen from './screens/WalletScreen'; // WalletScreenをインポート
 import ProfileDetailsScreen from './screens/ProfileDetailsScreen'; // ProfileDetailsScreenをインポート
+import StripeOnboardingScreen from './screens/StripeOnboardingScreen'; // StripeOnboardingScreenをインポート
 
 // サイドドロワーコンポーネントをインポート
 import SideDrawer from './components/SideDrawer';
@@ -854,12 +855,24 @@ export default function ReMatApp() {
               storeName={appStoreName} 
             />
           )}
-          {screen === 'wallet' && ( 
+          {screen === 'wallet' && (
             <WalletScreen
               balance={balance}
               points={points}
               setScreen={setScreen}
-              setModal={setModal} 
+              setModal={setModal}
+            />
+          )}
+          {screen === 'stripe_onboarding' && (
+            <StripeOnboardingScreen
+              userId={userId}
+              setScreen={setScreen}
+              setModal={setModal}
+              setToast={setToast}
+              db={db}
+              appId={appId}
+              firebaseApp={firebaseApp}
+              isStoreMode={isStoreMode}
             />
           )}
 
@@ -876,7 +889,7 @@ export default function ReMatApp() {
           </div>
 
           {/* ナビゲーションバーコンポーネントをレンダリング */}
-          {(screen === 'home' || screen === 'スキャン' || screen === 'チャージ' || screen === 'ポイント' || screen === '取引履歴' || screen === 'notifications' || screen === 'account' || screen === '支払い' || screen === '支払い完了' || screen === '受け取る' || screen === 'wallet' || screen === 'profile_details') && (
+          {(screen === 'home' || screen === 'スキャン' || screen === 'チャージ' || screen === 'ポイント' || screen === '取引履歴' || screen === 'notifications' || screen === 'account' || screen === '支払い' || screen === '支払い完了' || screen === '受け取る' || screen === 'wallet' || screen === 'profile_details' || screen === 'stripe_onboarding') && (
             <NavigationBar
               setScreen={setScreen}
               auth={auth}

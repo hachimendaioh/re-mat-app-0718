@@ -20,32 +20,225 @@ const db = getFirestore();
 // Stripeクライアントを格納する変数 (遅延初期化のため)
 let stripeClientInstance = null;
 
-exports.processPayment = onCall(async (request) => {
-  logger.info("processPayment function started.");
-  logger.info("Received data from client:", request.data);
-  logger.info("Auth context:", request.auth);
-
+// Stripeクライアントの初期化ヘルパー関数
+function getStripeClient() {
   if (!stripeClientInstance) {
     logger.info("Stripe client instance not initialized. Attempting to initialize.");
     let stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
     if (!stripeSecretKey || stripeSecretKey.length === 0) {
-      logger.error("Stripe secret key is NOT found or is empty in environment variables (process.env.STRIPE_SECRET_KEY).");
-      throw new HttpsError('internal', 'Stripe secret key is not configured. Please set it using `firebase functions:secrets:set STRIPE_SECRET_KEY=\"YOUR_KEY\"`.');
-    } else {
-      logger.info(`Stripe secret key found. Length: ${stripeSecretKey.length}. (Value masked for security)`);
+      logger.error("Stripe secret key is NOT found or is empty in environment variables.");
+      throw new HttpsError('internal', 'Stripe secret key is not configured.');
     }
-    
+
     try {
       stripeClientInstance = stripe(stripeSecretKey);
       logger.info("Stripe client initialized successfully.");
     } catch (initError) {
-      logger.error("Error initializing Stripe client with provided key:", initError.message, initError);
-      throw new HttpsError('internal', 'Failed to initialize Stripe client with the provided key.', initError.message);
+      logger.error("Error initializing Stripe client:", initError.message);
+      throw new HttpsError('internal', 'Failed to initialize Stripe client.', initError.message);
     }
-  } else {
-    logger.info("Stripe client instance already initialized. Skipping re-initialization.");
   }
+  return stripeClientInstance;
+}
+
+// --- Stripe Connect アカウント作成 & オンボーディング ---
+exports.createStripeConnectAccount = onCall(async (request) => {
+  logger.info("createStripeConnectAccount function started.");
+
+  const userId = request.auth?.uid;
+  if (!userId) {
+    throw new HttpsError('unauthenticated', '認証されていません。ログインしてください。');
+  }
+
+  const appId = "re-mat-mvp";
+  const { returnUrl, refreshUrl } = request.data;
+
+  if (!returnUrl || !refreshUrl) {
+    throw new HttpsError('invalid-argument', 'returnUrl と refreshUrl は必須です。');
+  }
+
+  const stripeClient = getStripeClient();
+
+  // Firestoreからユーザープロフィール情報を取得
+  const userProfileRef = db.doc(`artifacts/${appId}/users/${userId}/profile/userProfile`);
+  const userProfileSnap = await userProfileRef.get();
+
+  if (!userProfileSnap.exists) {
+    throw new HttpsError('not-found', 'ユーザープロフィールが見つかりません。');
+  }
+
+  const profileData = userProfileSnap.data();
+  logger.info("User profile data fetched for Stripe Connect:", { userId, name: profileData.name, email: profileData.email, isStore: profileData.isStore });
+
+  // 既にStripe Connectアカウントが存在するか確認
+  const existingStripeAccountId = profileData.stripeConnectAccountId;
+
+  let stripeAccountId;
+
+  if (existingStripeAccountId) {
+    // 既存のアカウントがある場合、ステータスを確認
+    logger.info(`Existing Stripe Connect account found: ${existingStripeAccountId}`);
+    try {
+      const existingAccount = await stripeClient.accounts.retrieve(existingStripeAccountId);
+      if (existingAccount.details_submitted) {
+        throw new HttpsError('already-exists', 'Stripe Connectアカウントは既にオンボーディング完了済みです。');
+      }
+      stripeAccountId = existingStripeAccountId;
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+      logger.warn("Failed to retrieve existing Stripe account. Creating new one.", error.message);
+      stripeAccountId = null; // 新規作成にフォールバック
+    }
+  }
+
+  if (!stripeAccountId) {
+    // Stripe Connect アカウントを新規作成（ユーザー情報をプリフィル）
+    try {
+      const accountParams = {
+        type: 'express',
+        country: 'JP',
+        email: profileData.email || undefined,
+        capabilities: {
+          card_payments: { requested: true },
+          transfers: { requested: true },
+        },
+        business_type: profileData.isStore ? 'company' : 'individual',
+        metadata: {
+          firebase_uid: userId,
+          app_id: appId,
+        },
+      };
+
+      // 名前を姓名に分割（日本語は姓→名の順を想定）
+      const fullName = profileData.name || '';
+      const nameParts = fullName.trim().split(/\s+/);
+
+      if (profileData.isStore) {
+        // 店舗モードの場合: 店舗情報をプリフィル
+        accountParams.company = {
+          name: profileData.storeName || undefined,
+          phone: profileData.storePhoneNumber || undefined,
+          address: {
+            postal_code: profileData.storeAddress?.zipCode || undefined,
+            state: profileData.storeAddress?.prefecture || undefined,
+            city: profileData.storeAddress?.city || undefined,
+            line1: profileData.storeAddress?.streetAddress || undefined,
+            line2: profileData.storeAddress?.buildingName || undefined,
+            country: 'JP',
+          },
+        };
+        accountParams.business_profile = {
+          name: profileData.storeName || undefined,
+          support_phone: profileData.storePhoneNumber || undefined,
+        };
+      }
+
+      // 個人情報は常にプリフィル（店舗でも代表者情報として必要）
+      accountParams.individual = {
+        first_name: nameParts.length > 1 ? nameParts.slice(1).join(' ') : (nameParts[0] || undefined),
+        last_name: nameParts.length > 1 ? nameParts[0] : undefined,
+        email: profileData.email || undefined,
+        phone: profileData.phoneNumber || profileData.storePhoneNumber || undefined,
+        address: {
+          postal_code: profileData.address?.zipCode || profileData.storeAddress?.zipCode || undefined,
+          state: profileData.address?.prefecture || profileData.storeAddress?.prefecture || undefined,
+          city: profileData.address?.city || profileData.storeAddress?.city || undefined,
+          line1: profileData.address?.streetAddress || profileData.storeAddress?.streetAddress || undefined,
+          line2: profileData.address?.buildingName || profileData.storeAddress?.buildingName || undefined,
+          country: 'JP',
+        },
+      };
+
+      logger.info("Creating Stripe Connect account with params:", JSON.stringify(accountParams));
+      const account = await stripeClient.accounts.create(accountParams);
+      stripeAccountId = account.id;
+      logger.info(`Stripe Connect account created: ${stripeAccountId}`);
+
+      // FirestoreにStripeアカウントIDを保存
+      await userProfileRef.update({
+        stripeConnectAccountId: stripeAccountId,
+        stripeConnectStatus: 'pending',
+      });
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+      logger.error("Failed to create Stripe Connect account:", error);
+      throw new HttpsError('internal', `Stripe Connectアカウントの作成に失敗しました: ${error.message}`);
+    }
+  }
+
+  // Account Link（オンボーディングURL）を生成
+  try {
+    const accountLink = await stripeClient.accountLinks.create({
+      account: stripeAccountId,
+      refresh_url: refreshUrl,
+      return_url: returnUrl,
+      type: 'account_onboarding',
+    });
+
+    logger.info(`Stripe Account Link created: ${accountLink.url}`);
+    return {
+      success: true,
+      url: accountLink.url,
+      stripeAccountId: stripeAccountId,
+    };
+  } catch (error) {
+    logger.error("Failed to create Stripe Account Link:", error);
+    throw new HttpsError('internal', `オンボーディングURLの生成に失敗しました: ${error.message}`);
+  }
+});
+
+// --- Stripe Connect アカウントステータス確認 ---
+exports.checkStripeConnectStatus = onCall(async (request) => {
+  logger.info("checkStripeConnectStatus function started.");
+
+  const userId = request.auth?.uid;
+  if (!userId) {
+    throw new HttpsError('unauthenticated', '認証されていません。');
+  }
+
+  const appId = "re-mat-mvp";
+  const stripeClient = getStripeClient();
+
+  const userProfileRef = db.doc(`artifacts/${appId}/users/${userId}/profile/userProfile`);
+  const userProfileSnap = await userProfileRef.get();
+
+  if (!userProfileSnap.exists) {
+    throw new HttpsError('not-found', 'ユーザープロフィールが見つかりません。');
+  }
+
+  const profileData = userProfileSnap.data();
+  const stripeAccountId = profileData.stripeConnectAccountId;
+
+  if (!stripeAccountId) {
+    return { status: 'not_created', detailsSubmitted: false, chargesEnabled: false, payoutsEnabled: false };
+  }
+
+  try {
+    const account = await stripeClient.accounts.retrieve(stripeAccountId);
+    const status = account.details_submitted ? 'active' : 'pending';
+
+    // Firestoreのステータスも更新
+    await userProfileRef.update({ stripeConnectStatus: status });
+
+    return {
+      status: status,
+      detailsSubmitted: account.details_submitted,
+      chargesEnabled: account.charges_enabled,
+      payoutsEnabled: account.payouts_enabled,
+    };
+  } catch (error) {
+    logger.error("Failed to check Stripe Connect status:", error);
+    throw new HttpsError('internal', `Stripeアカウントのステータス確認に失敗しました: ${error.message}`);
+  }
+});
+
+exports.processPayment = onCall(async (request) => {
+  logger.info("processPayment function started.");
+  logger.info("Received data from client:", request.data);
+  logger.info("Auth context:", request.auth);
+
+  const stripeClient = getStripeClient();
 
   // receiverNameをclientReceiverNameとして受け取り、後でactualReceiverNameを決定する
   const { receiverId, amount: clientAmount, items: clientItems, senderName, receiverName: clientReceiverName, orderId } = request.data;
@@ -116,7 +309,7 @@ exports.processPayment = onCall(async (request) => {
 
   try {
     logger.info("Attempting to create Stripe Payment Intent.");
-    const paymentIntent = await stripeClientInstance.paymentIntents.create({
+    const paymentIntent = await stripeClient.paymentIntents.create({
       amount: finalAmount,
       currency: 'jpy',
       payment_method_types: ['card'],
