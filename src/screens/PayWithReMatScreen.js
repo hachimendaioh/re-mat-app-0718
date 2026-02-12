@@ -1,7 +1,7 @@
 import React from 'react';
 
 const PayWithReMatScreen = ({ balance, points, setScreen }) => (
-  <div className="p-4 text-white font-inter"> {/* font-inter を追加 */}
+  <div className="p-4 pb-48 text-white font-inter"> {/* font-inter を追加 */}
     <h2 className="text-3xl font-bold mb-6 text-center">リマット残高で支払う</h2>
 
     <div className="bg-white rounded-xl shadow-lg p-6 mb-6 flex flex-col items-center animate-slide-in-right">

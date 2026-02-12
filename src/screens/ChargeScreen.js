@@ -43,7 +43,7 @@ const ChargeScreen = ({ balance, chargeAmount, setChargeAmount, handleCharge, se
   if (!selectedMethod) {
     return (
       // メインコンテナの背景をグラデーションに調整
-      <div className="p-4 text-white text-center animate-fade-in font-inter min-h-screen bg-gradient-to-br from-[#1A032E] to-[#3A0F5B]">
+      <div className="p-4 pb-48 text-white text-center animate-fade-in font-inter min-h-screen bg-gradient-to-br from-[#1A032E] to-[#3A0F5B]">
         {/* タイトル色の調整 */}
         <h2 className="text-3xl font-bold mb-6 text-white">チャージ方法を選択</h2>
 
@@ -99,7 +99,7 @@ const ChargeScreen = ({ balance, chargeAmount, setChargeAmount, handleCharge, se
   // チャージ方法が選択された後、金額入力とチャージボタンを表示
   return (
     // メインコンテナの背景をグラデーションに調整
-    <div className="p-4 text-white text-center animate-fade-in font-inter min-h-screen bg-gradient-to-br from-[#1A032E] to-[#3A0F5B]">
+    <div className="p-4 pb-48 text-white text-center animate-fade-in font-inter min-h-screen bg-gradient-to-br from-[#1A032E] to-[#3A0F5B]">
       {/* タイトル色の調整 */}
       <h2 className="text-3xl font-bold mb-4 text-white">チャージ ({methodNameMap[selectedMethod]})</h2>
 
